@@ -1,0 +1,69 @@
+# ==============================================================================
+# .gitignore — Advena PS Vita Port (Anti-DMCA & Clean Repository)
+# ==============================================================================
+
+# macOS metadata
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Android APK / ZIP originales y carpetas de extracción (DMCA / Copyright)
+*.apk
+*.zip
+/Advena-1.0.1/
+/advena_extract/
+/*_extract/
+
+# Decompilación de Java (jadx) y C/C++ (Ghidra / angr / so-decompiler)
+/decompiled/
+/glsl_dump/
+*.ghidra
+out_ghidra.*
+out_angr.*
+
+# Binarios .so propietarios del juego original
+*.so
+libgameDSO.so
+lib/*.so
+lib/**/*.so
+
+# Assets del juego propietarios (sprites, audio, texturas, scripts)
+/assets/
+/ux0_data/
+/data/
+
+# Artefactos de compilación (CMake / VitaSDK)
+/build/
+/cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+*.elf
+*.self
+*.vpk
+*.suprx
+*.a
+*.o
+*.obj
+
+# Archivos de depuración y volcados de memoria en consola PS Vita
+/logs/
+log_*.txt
+*.psp2dmp
+coredump*
+psp2core-*
+
+# Python cache y bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDEs y editores de código
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
