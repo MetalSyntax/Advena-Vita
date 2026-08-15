@@ -80,3 +80,13 @@ void _log_print(int t, const char* fmt, ...) {
         sceKernelUnlockLwMutex(&_log_mutex, 1);
     }
 }
+
+void game_log(const char *fmt, ...) {
+    va_list list;
+    va_start(list, fmt);
+    char buf[1024];
+    sceClibVsnprintf(buf, sizeof(buf), fmt, list);
+    va_end(list);
+    sceClibPrintf("%s", buf);
+}
+

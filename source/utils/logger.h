@@ -45,6 +45,8 @@ extern "C" {
 void _log_print(int t, const char* fmt, ...)
                 __attribute__ ((format (printf, 2, 3)));
 
+void game_log(const char *fmt, ...);
+
 #ifdef __cplusplus
 };
 #endif

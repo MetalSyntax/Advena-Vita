@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.10)
 
 if (NOT DEFINED ENV{VITASDK} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
   message(FATAL_ERROR "Please define VITASDK env var to point to your SDK path or set CMAKE_TOOLCHAIN_FILE.")
@@ -69,6 +69,8 @@ add_executable(${CMAKE_PROJECT_NAME}
                source/main.c
                source/dynlib.c
                source/java.c
+               source/audio.c
+               source/font.c
                source/patch.c
                source/reimpl/bits/_ctype.c
                source/reimpl/egl.c
@@ -109,6 +111,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
                       stdc++
                       vitaGL
                       vitashark
+                      vorbisidec
+                      ogg
                       SceShaccCgExt
                       taihen_stub
                       SceShaccCg_stub

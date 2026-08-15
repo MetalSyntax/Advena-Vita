@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <psp2/kernel/threadmgr.h>
 
 #ifdef USE_SCELIBC_IO
@@ -30,33 +31,75 @@
 // void stat_newlib_to_bionic(struct stat * src, stat64_bionic * dst);
 #include "reimpl/bits/_struct_converters.c"
 
+static void resolve_path_soloader(const char *path, char *out, size_t out_len) {
+    if (!path || !out) return;
+    if (strncmp(path, "ux0:", 4) == 0 || strncmp(path, "app0:", 5) == 0 || strncmp(path, "ur0:", 4) == 0) {
+        strncpy(out, path, out_len);
+        out[out_len - 1] = '\0';
+        return;
+    }
+
+    // Skip leading ./
+    if (strncmp(path, "./", 2) == 0) {
+        path += 2;
+    }
+
+    // Skip leading /sdcard/ or /data/
+    if (strncmp(path, "/sdcard/", 8) == 0) {
+        path += 8;
+    } else if (strncmp(path, "/data/", 6) == 0) {
+        path += 6;
+    }
+
+    snprintf(out, out_len, "ux0:data/advena/assets/%s", path);
+    if (access(out, F_OK) == 0) return;
+
+    snprintf(out, out_len, "ux0:data/advena/%s", path);
+    if (access(out, F_OK) == 0) return;
+
+    snprintf(out, out_len, "ux0:data/advena/saves/%s", path);
+    if (access(out, F_OK) == 0) return;
+
+    snprintf(out, out_len, "ux0:data/advena/assets/%s", path);
+}
+
 FILE * fopen_soloader(const char * filename, const char * mode) {
+    if (!filename) return NULL;
+
     if (strcmp(filename, "/proc/cpuinfo") == 0) {
         return fopen_soloader("app0:/cpuinfo", mode);
     } else if (strcmp(filename, "/proc/meminfo") == 0) {
         return fopen_soloader("app0:/meminfo", mode);
     }
 
+    char resolved[256];
+    resolve_path_soloader(filename, resolved, sizeof(resolved));
+
 #ifdef USE_SCELIBC_IO
-    FILE* ret = sceLibcBridge_fopen(filename, mode);
+    FILE* ret = sceLibcBridge_fopen(resolved, mode);
 #else
-    FILE* ret = fopen(filename, mode);
+    FILE* ret = fopen(resolved, mode);
 #endif
 
     if (ret)
-        l_debug("fopen(%s, %s): %p", filename, mode, ret);
+        l_debug("fopen(%s -> %s, %s): %p", filename, resolved, mode, ret);
     else
-        l_warn("fopen(%s, %s): %p", filename, mode, ret);
+        l_warn("fopen(%s -> %s, %s): %p", filename, resolved, mode, ret);
 
     return ret;
 }
 
 int open_soloader(const char * path, int oflag, ...) {
+    if (!path) return -1;
+
     if (strcmp(path, "/proc/cpuinfo") == 0) {
         return open_soloader("app0:/cpuinfo", oflag);
     } else if (strcmp(path, "/proc/meminfo") == 0) {
         return open_soloader("app0:/meminfo", oflag);
     }
+
+    char resolved[256];
+    resolve_path_soloader(path, resolved, sizeof(resolved));
 
     mode_t mode = 0666;
     if (((oflag & BIONIC_O_CREAT) == BIONIC_O_CREAT) ||
@@ -68,11 +111,11 @@ int open_soloader(const char * path, int oflag, ...) {
     }
 
     oflag = oflags_bionic_to_newlib(oflag);
-    int ret = open(path, oflag, mode);
+    int ret = open(resolved, oflag, mode);
     if (ret >= 0)
-        l_debug("open(%s, %x): %i", path, oflag, ret);
+        l_debug("open(%s -> %s, %x): %i", path, resolved, oflag, ret);
     else
-        l_warn("open(%s, %x): %i", path, oflag, ret);
+        l_warn("open(%s -> %s, %x): %i", path, resolved, oflag, ret);
     return ret;
 }
 
@@ -88,13 +131,29 @@ int fstat_soloader(int fd, stat64_bionic * buf) {
 }
 
 int stat_soloader(const char * path, stat64_bionic * buf) {
+    if (!path) return -1;
+
+    char resolved[256];
+    resolve_path_soloader(path, resolved, sizeof(resolved));
+
     struct stat st;
-    int res = stat(path, &st);
+    int res = stat(resolved, &st);
 
     if (res == 0)
         stat_newlib_to_bionic(&st, buf);
 
-    l_debug("stat(%s): %i", path, res);
+    l_debug("stat(%s -> %s): %i", path, resolved, res);
+    return res;
+}
+
+int access_soloader(const char * path, int mode) {
+    if (!path) return -1;
+
+    char resolved[256];
+    resolve_path_soloader(path, resolved, sizeof(resolved));
+
+    int res = access(resolved, mode);
+    l_debug("access(%s -> %s, %i): %i", path, resolved, mode, res);
     return res;
 }
 
@@ -116,8 +175,10 @@ int close_soloader(int fd) {
 }
 
 DIR* opendir_soloader(char* _pathname) {
-    DIR* ret = opendir(_pathname);
-    l_debug("opendir(\"%s\"): %p", _pathname, ret);
+    char resolved[256];
+    resolve_path_soloader(_pathname, resolved, sizeof(resolved));
+    DIR* ret = opendir(resolved);
+    l_debug("opendir(\"%s\" -> \"%s\"): %p", _pathname, resolved, ret);
     return ret;
 }
 

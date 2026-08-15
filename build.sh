@@ -48,7 +48,7 @@ rsync -a \
 
 echo "[3/4] Ejecutando CMake y Make..."
 cd "$BUILD_DIR"
-cmake "$SRC_DIR" -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+cmake "$SRC_DIR" -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
 make -j"$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 
 VPK_SOURCE="$BUILD_DIR/$VPK_NAME"
