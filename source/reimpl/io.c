@@ -31,8 +31,40 @@
 // void stat_newlib_to_bionic(struct stat * src, stat64_bionic * dst);
 #include "reimpl/bits/_struct_converters.c"
 
+// Real save-game / progress files used by the engine (CUISubMenuSaveSlot's
+// s0/s1/s2 slots plus the shared "global" data). The engine builds these
+// paths itself as getAbsolueFilePath() + filename (i.e. already prefixed
+// with "ux0:data/advena/"), so they must be special-cased *before* the
+// generic "already an absolute sceIo path" passthrough below, otherwise
+// they land in the data root instead of the saves/ subfolder.
+// op.dat (options) and _uiDpad/_uiButton_N (control layout) are
+// configuration, not save progress, so they intentionally stay in the root.
+static const char *g_save_basenames[] = {
+    "s0.dat", "s1.dat", "s2.dat", "g.dat", "g_an_g.dat", NULL
+};
+
+static const char *path_basename(const char *path) {
+    const char *slash = strrchr(path, '/');
+    return slash ? slash + 1 : path;
+}
+
+static int is_save_basename(const char *basename) {
+    for (int i = 0; g_save_basenames[i]; i++) {
+        if (strcmp(basename, g_save_basenames[i]) == 0) return 1;
+    }
+    return 0;
+}
+
 static void resolve_path_soloader(const char *path, char *out, size_t out_len) {
     if (!path || !out) return;
+
+    const char *base = path_basename(path);
+    if (is_save_basename(base)) {
+        mkdir("ux0:data/advena/saves", 0777);
+        snprintf(out, out_len, "ux0:data/advena/saves/%s", base);
+        return;
+    }
+
     if (strncmp(path, "ux0:", 4) == 0 || strncmp(path, "app0:", 5) == 0 || strncmp(path, "ur0:", 4) == 0) {
         strncpy(out, path, out_len);
         out[out_len - 1] = '\0';
@@ -55,6 +87,15 @@ static void resolve_path_soloader(const char *path, char *out, size_t out_len) {
     if (access(out, F_OK) == 0) return;
 
     snprintf(out, out_len, "ux0:data/advena/%s", path);
+    if (access(out, F_OK) == 0) return;
+
+    snprintf(out, out_len, "ux0:data/advena/res/drawable/%s", path);
+    if (access(out, F_OK) == 0) return;
+
+    snprintf(out, out_len, "ux0:data/advena/res/raw/%s", path);
+    if (access(out, F_OK) == 0) return;
+
+    snprintf(out, out_len, "ux0:data/advena/res/%s", path);
     if (access(out, F_OK) == 0) return;
 
     snprintf(out, out_len, "ux0:data/advena/saves/%s", path);

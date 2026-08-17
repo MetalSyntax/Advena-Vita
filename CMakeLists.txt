@@ -141,17 +141,35 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
                       )
 
 vita_create_self(eboot.bin ${CMAKE_PROJECT_NAME} UNSAFE NOASLR)
-vita_create_vpk(${VITA_VPKNAME}.vpk ${VITA_TITLEID} eboot.bin
-                VERSION ${VITA_VERSION}
-                NAME ${VITA_APP_NAME}
-                FILE ${CMAKE_SOURCE_DIR}/extras/cpuinfo cpuinfo
-                ${CMAKE_SOURCE_DIR}/extras/meminfo meminfo
-                ${CMAKE_SOURCE_DIR}/extras/livearea/icon0.png sce_sys/icon0.png
-                ${CMAKE_SOURCE_DIR}/extras/livearea/pic0.png sce_sys/pic0.png
-                ${CMAKE_SOURCE_DIR}/extras/livearea/startup.png sce_sys/livearea/contents/startup.png
-                ${CMAKE_SOURCE_DIR}/extras/livearea/bg0.png sce_sys/livearea/contents/bg0.png
-                ${CMAKE_SOURCE_DIR}/extras/livearea/template.xml sce_sys/livearea/contents/template.xml
-                )
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${VITA_VPKNAME}.vpk_param.sfo
+  COMMAND "${VITASDK}/bin/vita-mksfoex" -s APP_VER=${VITA_VERSION} -s TITLE_ID=${VITA_TITLEID} -d ATTRIBUTE2=12 ${VITA_APP_NAME} ${CMAKE_CURRENT_BINARY_DIR}/${VITA_VPKNAME}.vpk_param.sfo
+  DEPENDS eboot.bin-self
+  COMMENT "Generating param.sfo for ${VITA_VPKNAME}.vpk"
+  VERBATIM
+)
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${VITA_VPKNAME}.vpk
+  COMMAND "${VITASDK}/bin/vita-pack-vpk"
+    -s "${CMAKE_CURRENT_BINARY_DIR}/${VITA_VPKNAME}.vpk_param.sfo"
+    -b "${CMAKE_CURRENT_BINARY_DIR}/eboot.bin"
+    -a "${CMAKE_SOURCE_DIR}/extras/cpuinfo=cpuinfo"
+    -a "${CMAKE_SOURCE_DIR}/extras/meminfo=meminfo"
+    -a "${CMAKE_SOURCE_DIR}/extras/livearea/icon0.png=sce_sys/icon0.png"
+    -a "${CMAKE_SOURCE_DIR}/extras/livearea/pic0.png=sce_sys/pic0.png"
+    -a "${CMAKE_SOURCE_DIR}/extras/livearea/startup.png=sce_sys/livearea/contents/startup.png"
+    -a "${CMAKE_SOURCE_DIR}/extras/livearea/bg0.png=sce_sys/livearea/contents/bg0.png"
+    -a "${CMAKE_SOURCE_DIR}/extras/livearea/template.xml=sce_sys/livearea/contents/template.xml"
+    "${CMAKE_CURRENT_BINARY_DIR}/${VITA_VPKNAME}.vpk"
+  DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${VITA_VPKNAME}.vpk_param.sfo"
+  DEPENDS eboot.bin-self
+  COMMENT "Building vpk ${VITA_VPKNAME}.vpk"
+  VERBATIM
+)
+
+add_custom_target(${VITA_VPKNAME}.vpk-vpk ALL
+  DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/${VITA_VPKNAME}.vpk"
+)
 
 add_custom_target(send
                   COMMAND echo destroy | nc ${PSVITAIP} 1338

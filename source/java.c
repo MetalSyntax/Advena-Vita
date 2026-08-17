@@ -29,7 +29,13 @@ static int advena_resolve_asset_path(const char *name, char *out, size_t out_siz
     snprintf(out, out_size, "ux0:data/advena/%s", name);
     if (access(out, F_OK) == 0) return 1;
 
+    snprintf(out, out_size, "ux0:data/advena/res/drawable/%s", name);
+    if (access(out, F_OK) == 0) return 1;
+
     snprintf(out, out_size, "ux0:data/advena/res/raw/%s", name);
+    if (access(out, F_OK) == 0) return 1;
+
+    snprintf(out, out_size, "ux0:data/advena/res/%s", name);
     if (access(out, F_OK) == 0) return 1;
 
     return 0;
@@ -183,7 +189,20 @@ jobject Advena_getPhoneModel(jmethodID id, va_list args) {
 }
 
 jobject Advena_getAbsolueFilePath(jmethodID id, va_list args) {
-    return (jobject) "ux0:data/advena/";
+    /*
+     * On real Android this mirrors Context.getFilesDir().getAbsolutePath()
+     * (see Natives.getAbsolueFilePath()/NexusUtils.getAbsolueFilePath() in
+     * the decompiled APK). The native engine calls this JNI method directly
+     * (not through advena_resolve_asset_path) to build fopen() paths for its
+     * own private read/write state: save slots (s0.dat/s1.dat/s2.dat),
+     * game/options data (g.dat/g_an_g.dat/op.dat) and on-screen UI layout
+     * files (_uiButton_N/_uiDpad) — confirmed via logs/advena_latest.log and
+     * strings(1) on libgameDSO.so. Asset loading is handled separately by
+     * advena_resolve_asset_path()/Advena_readAssets(), which never consults
+     * this path, so it is safe to point this at the saves/ directory.
+     */
+    mkdir("ux0:data/advena/saves", 0777);
+    return (jobject) "ux0:data/advena/saves";
 }
 
 jobject Advena_getPhoneNumber(jmethodID id, va_list args) {
@@ -608,6 +627,7 @@ NameToMethodID nameToMethodId[] = {
     { 73, "stopAndroidSound", METHOD_TYPE_VOID },
     { 74, "vibrateAndroid", METHOD_TYPE_VOID },
     { 75, "changeUIStatus", METHOD_TYPE_VOID },
+    { 76, "getVPoint", METHOD_TYPE_VOID },
 };
 
 MethodsBoolean methodsBoolean[] = {
@@ -705,6 +725,7 @@ MethodsVoid methodsVoid[] = {
     { 73, Advena_OnStopSound },
     { 74, Advena_OnVibrate },
     { 75, Advena_OnUIStatusChange },
+    { 76, Advena_VoidNoop },
 };
 
 /*

@@ -169,16 +169,30 @@ PTHR_INLINE int _cond_t_static_init(pthread_cond_t_bionic * cond, const pthread_
 
 int pthread_create_soloader(pthread_t *thread, const pthread_attr_t_bionic *attr, void *(*start)(void *), void *param) {
     int ret;
+    // 512KB was hard-pinned for every thread regardless of what the game
+    // asked for (the bionic attr's own requested size, even if explicitly
+    // set via pthread_attr_setstacksize_soloader(), was clobbered on the
+    // `attr` branch below). The engine's deep init/UI call chains (e.g.
+    // GVUIPlayerController construction -> InitialPlayerPadSet) overflow
+    // that: confirmed via psp2dmp, a Data Abort on a plain stack-store
+    // instruction right at a function's prologue, with SP sitting in a
+    // poisoned/unmapped guard region. Raise the floor instead of ever
+    // shrinking an explicit larger request.
+    const size_t MIN_STACK_SIZE = 2 * 1024 * 1024;
 
     if (!attr) {
         pthread_attr_t a;
         pthread_attr_init(&a);
-        pthread_attr_setstacksize(&a, 512 * 1024);
+        pthread_attr_setstacksize(&a, MIN_STACK_SIZE);
         ret = pthread_create(thread, &a, start, param);
         pthread_attr_destroy(&a);
     } else{
         _attr_t_static_init((pthread_attr_t_bionic *) attr);
-        pthread_attr_setstacksize(attr->real_ptr, 512 * 1024);
+        size_t requested_size = 0;
+        pthread_attr_getstacksize(attr->real_ptr, &requested_size);
+        if (requested_size < MIN_STACK_SIZE) {
+            pthread_attr_setstacksize(attr->real_ptr, MIN_STACK_SIZE);
+        }
         ret = pthread_create(thread, attr->real_ptr, start, param);
     }
 
