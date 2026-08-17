@@ -22,14 +22,13 @@
 ### Arquitectura del Motor (Gamevil Nexus2 / GxPZx Engine)
 1. **Motor C++ de Action RPG (GxPZx):**
    * Advena utiliza el motor C++ de alto rendimiento de Gamevil (familias de clases `CGxPZxMgr`, `CGxPZxFrame`, `CCharObject`, `CBattleUI`, `CGameET`, `CB15InputKey`).
-   * El pipeline gráfico se apoya en **OpenGL ES 1.1 Fixed-Function** (`glClearColorx`, `glTexParameterx`, `glTexCoordPointer`, `glNormalPointer`, `glDrawArrays`, `glOrthof`).
-2. **Resolución de Renderizado:**
-   * La resolución lógica base del juego es **400 x 240** (`GAME_W = 400`, `GAME_H = 240`).
-   * Se inicializa mediante `NativeInitWithBufferSize(400, 240)` y `NativeInitDeviceInfo(400, 240)`, configurando el viewport a 960 x 544 en PS Vita con `vitaGL`.
+   * El pipeline gráfico se apoya en **OpenGL ES 1.1 Fixed-Function** (`glClearColorx`, `glTexParameterx`, `glTexCoordPointer`, `glNormalPointer`, `glDrawArra2. **Resolución de Renderizado:**
+   * La resolución lógica base del juego es **480 x 320** (`GAME_W = 480`, `GAME_H = 320`, definido explícitamente en `AdvenaLauncher.java: gameScreenWidth = 480, gameScreenHeight = 320`).
+   * Se inicializa mediante `NativeInitWithBufferSize(480, 320)` y `NativeInitDeviceInfo(480, 320)`, configurando el viewport a 960 x 544 en PS Vita con `vitaGL`.
 3. **Ciclo de Vida JNI:**
    * `Java_com_gamevil_nexus2_Natives_InitializeJNIGlobalRef`: Guarda la referencia de `JavaVM*` y referencias JNI globales del motor.
-   * `Java_com_gamevil_nexus2_Natives_NativeInitWithBufferSize(400, 240)`: Inicializa el gestor de memoria interno del motor (`Gcx_MM_Init` / `startClet`). Debe llamarse **antes** de `NativeInitDeviceInfo`.
-   * `Java_com_gamevil_nexus2_Natives_NativeInitDeviceInfo(400, 240)`: Configura las dimensiones del dispositivo y aloca los buffers de dibujo.
+   * `Java_com_gamevil_nexus2_Natives_NativeInitWithBufferSize(480, 320)`: Inicializa el gestor de memoria interno del motor (`Gcx_MM_Init` / `startClet`). Debe llamarse **antes** de `NativeInitDeviceInfo`.
+   * `Java_com_gamevil_nexus2_Natives_NativeInitDeviceInfo(480, 320)`: Configura las dimensiones del dispositivo y aloca los buffers de dibujo.
    * `Java_com_gamevil_nexus2_Natives_NativeResize(960, 544)`: Configura la matriz ortográfica y el viewport en la pantalla de la consola.
    * `Java_com_gamevil_nexus2_Natives_handleCletEvent(event, p1, p2, pointerId)`: Inyecta eventos de entrada (táctil y teclas de control).
    * `Java_com_gamevil_nexus2_Natives_NativeRender()`: Ejecuta 1 tick del bucle de juego y renderiza el frame actual.
@@ -44,7 +43,7 @@
 
 * **Arquitectura Binaria:** ARMv5TE / ARMv6 (`armeabi`), código ARM/Thumb en modo `softfp`. Totalmente compatible de forma nativa con el CPU Cortex-A9 de la PS Vita.
 * **Gráficos:** OpenGL ES 1.1 Fixed-Function soportado directamente mediante `vitaGL` (`USE_SCELIBC_IO`, modo GLSL o traducción de primitivas).
-* **Resolución PS Vita:** 960 x 544 (escalado desde el canvas nativo de 400x240 con viewport `glViewport(0, 0, 960, 544)`).
+* **Resolución PS Vita:** 960 x 544 (escalado desde el canvas nativo de 480x320 con viewport `glViewport(0, 0, 960, 544)`).glViewport(0, 0, 960, 544)`).
 
 ---
 
@@ -129,13 +128,21 @@
 - **Problema:** El log arrojaba `GetStaticMethodID(env, ..., "getVPoint", "(I)V"): not found` al entrar en menús.
 - **Solución (`source/java.c`):** Se añadió `getVPoint` a `nameToMethodId` y `methodsVoid`.
 
-### Bug 7: Desfase del input táctil
-- **Problema:** `GAME_W` y `GAME_H` estaban seteados a 480x320 en `main.c`, mientras que el motor gráfico de Advena opera en 400x240. Las coordenadas táctiles estaban desfasadas entre un 20% y 33% respecto a los hitboxes reales.
-- **Solución (`source/main.c`):** Se ajustaron `GAME_W = 400` y `GAME_H = 240`, y se recalibraron los hotspots virtuales de los controles físicos.
+### Bug 7: Desfase del input táctil y calibración
+- **Problema:** En versiones tempranas, las coordenadas táctiles estaban descalibradas respecto a las cajas de colisión y botones del juego.
+- **Solución (`source/main.c`):** Se adaptaron las fórmulas de mapeo de pantalla táctil y se calibraron los hotspots virtuales basados en el espacio de coordenadas nativo del motor.
 
 ### Bug 8: Rotación y limpieza de logs
 - **Problema:** Se creaba un archivo redundante `advena_latest.log` que competía con la rotación secuencial.
 - **Solución (`source/utils/logger.c`):** Se eliminó el archivo residual y se mantuvo la rotación limpia `advena_001.log` .. `advena_NNN.log`.
+
+### Bug 9: Recorte de menús inferiores, pérdida del botón [X] y retratos de UI por resolución incorrecta (400x240 vs 480x320)
+- **Problema:** Se había asumido una resolución lógica de 400x240 basándose en otros juegos de Gamevil/Nexus2. Al renderizar en 240px de alto, todos los menús y diálogos (diseñados para 320px de alto en Android, como el menú de opciones con el slider de velocidad y el botón [X] inferior) perdían los 80px inferiores, cortando elementos críticos de la interfaz.
+- **Solución:**
+  1. Se inspeccionó el APK decompilado (`AdvenaLauncher.java:159-160`), confirmando que la resolución de diseño oficial de Advena es `gameScreenWidth = 480` y `gameScreenHeight = 320`.
+  2. Se reconfiguraron `GAME_W = 480` y `GAME_H = 320` (`ENGINE_LOGICAL_W/H = 480/320`) en `source/main.c`.
+  3. El rasterizador por software ahora renderiza el lienzo completo a 480x320 y `glResize(960, 544)` lo proyecta estirado a pantalla completa en la PS Vita sin perder ningún botón o información visual.
+  4. Se recalibraron los hotspots táctiles virtuales para el espacio de 480x320.
 
 ---
 
@@ -160,11 +167,11 @@
 
 - [x] **Fase 3: Pipeline de Renderizado Gráfico (`source/main.c`)**
   - [x] Inicializar ventana y contexto `vitaGL` en 960x544.
-  - [x] Configuración del ciclo nativo: `InitializeJNIGlobalRef` -> `NativeInitWithBufferSize(400, 240)` -> `NativeInitDeviceInfo(400, 240)` -> `NativeResize(960, 544)`.
+  - [x] Configuración del ciclo nativo: `InitializeJNIGlobalRef` -> `NativeInitWithBufferSize(480, 320)` -> `NativeInitDeviceInfo(480, 320)` -> `NativeResize(960, 544)`.
   - [x] Bucle principal de renderizado invocando `NativeRender()` y `gl_swap()`.
 
 - [x] **Fase 4: Input Táctil y Controles Físicos**
-  - [x] Soporte para pantalla táctil frontal mapeada a canvas 400x240 (`handleCletEvent` con eventos 23=Down, 25=Move, 24=Up).
+  - [x] Soporte para pantalla táctil frontal mapeada a canvas 480x320 (`handleCletEvent` con eventos 23=Down, 25=Move, 24=Up).
   - [x] Mapeo completo de botones físicos de la PS Vita:
     - D-Pad / Stick Analógico Izquierdo -> Movimiento (KeyCodes 50, 56, 52, 54).
     - Botón Cruz (✕) -> Ataque / Confirmar / Hablar con NPC (Key 53).

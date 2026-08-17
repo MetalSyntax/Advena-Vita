@@ -18,6 +18,7 @@
 
 extern so_module so_mod;
 
+
 // --- Teamstrike [T] button position fix -------------------------------------
 //
 // GVUIPlayerController::ShowBtn (patched below) only ever toggles Show()/
@@ -229,6 +230,7 @@ void so_patch(void) {
     GVUIObject_SetPosition_real = (fn_GVUIObject_SetPosition)(so_mod.text_base + 0x88388 + 1);
     InitialPlayerPadSet_hook = hook_thumb(so_mod.text_base + 0x896cc + 1, (uintptr_t)InitialPlayerPadSet_patched);
     l_info("[Patch] Hooked GVUIPlayerController::InitialPlayerPadSet to fix the Teamstrike [T] button position.");
+
 
     // 6. Hook CGsEncryptFile::ReadPtr at offset 0x74714:
     // prevent a Data Abort (NULL-pointer memcpy) when Load Game runs against

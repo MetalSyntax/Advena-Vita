@@ -1,7 +1,7 @@
 # Advena: Legend of Emeris — PS Vita Port
 
 <p align="center">
-  <img src="extras/livearea/icon0.png" alt="Advena PS Vita Banner" width="128">
+  <img src="extras/livearea/pic0.png" alt="Advena PS Vita Banner" width="512">
 </p>
 
 This is a native PS Vita port of **Advena: Legend of Emeris (아드베나)**, the classic Action-RPG developed and published by **Gamevil**, running via an ARM dynamic library loader (soloader) and FalsoJNI.
@@ -24,21 +24,21 @@ This is a native PS Vita port of **Advena: Legend of Emeris (아드베나)**, th
 
 ## Controls
 
-| PS Vita Button | In-Game Action |
-|---|---|
-| **D-Pad / Left Stick** | Walk / Climb Ladder (Up, Down, Left, Right) |
-| **Cross (✕)** | Attack / Action / Talk to NPC / Confirm |
-| **Circle (◯)** | Jump Right (Forward Jump in combat) |
-| **Triangle (△)** | Jump Left (Backward Jump in combat) |
-| **Square (□) / Right Stick Left** | Skill Slot 1 / Submenu |
-| **Right Stick Up** | Skill Slot 2 |
-| **Right Stick Down** | Skill Slot 3 |
-| **Right Stick Right** | Skill Slot 4 |
-| **L1 Trigger** | Teamstrike [T] / Quest [!] / Tab |
-| **R1 Trigger** | Tag / Switch Character |
-| **Select** | Inventory / Bag / Cancel / Back |
-| **Start** | Pause Menu / System |
-| **Touch Screen** | Direct UI interaction (dialogs, menus, navigation) |
+| PS Vita Button                    | In-Game Action                                     |
+| --------------------------------- | -------------------------------------------------- |
+| **D-Pad / Left Stick**            | Walk / Climb Ladder (Up, Down, Left, Right)        |
+| **Cross (✕)**                     | Attack / Action / Talk to NPC / Confirm            |
+| **Circle (◯)**                    | Jump Right (Forward Jump in combat)                |
+| **Triangle (△)**                  | Jump Left (Backward Jump in combat)                |
+| **Square (□) / Right Stick Left** | Skill Slot 1 / Submenu                             |
+| **Right Stick Up**                | Skill Slot 2                                       |
+| **Right Stick Down**              | Skill Slot 3                                       |
+| **Right Stick Right**             | Skill Slot 4                                       |
+| **L1 Trigger**                    | Teamstrike [T] / Quest [!] / Tab                   |
+| **R1 Trigger**                    | Tag / Switch Character                             |
+| **Select**                        | Inventory / Bag / Cancel / Back                    |
+| **Start**                         | Pause Menu / System                                |
+| **Touch Screen**                  | Direct UI interaction (dialogs, menus, navigation) |
 
 ---
 
@@ -74,6 +74,7 @@ cmake --build build
 ```
 
 This will produce:
+
 - `build/advena.elf`
 - `build/eboot.bin`
 - `build/advena.vpk`
@@ -82,7 +83,7 @@ This will produce:
 
 ## Credits & Acknowledgements
 
-- **Gamevil** for developing and publishing *Advena: Legend of Emeris*.
+- **Gamevil** for developing and publishing _Advena: Legend of Emeris_.
 - **TheFloW** for the original .so loader concept.
 - **Rinnegatamante** for [vitaGL](https://github.com/Rinnegatamante/vitaGL) and invaluable soloader contributions.
 - **Volodymyr Atamanenko** for the soloader boilerplate and FalsoJNI framework.

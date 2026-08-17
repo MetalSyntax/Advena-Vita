@@ -37,7 +37,13 @@ void gl_preload() {
 }
 
 void gl_init() {
-    vglInitExtended(0, 960, 544, 6 * 1024 * 1024, SCE_GXM_MULTISAMPLE_4X);
+    // No MSAA / no triple buffering: this is the config confirmed working on
+    // real hardware for the same engine (com.gamevil.nexus2.Natives) in the
+    // Zenonia 2/3 Vita ports and in Prince of Persia. Advena was the only
+    // port in this family initializing with SCE_GXM_MULTISAMPLE_4X instead
+    // of _NONE.
+    vglUseTripleBuffering(GL_FALSE);
+    vglInitExtended(0, 960, 544, 6 * 1024 * 1024, SCE_GXM_MULTISAMPLE_NONE);
 }
 
 void gl_swap() {

@@ -42,14 +42,17 @@ int sceLibcHeapSize = 4 * 1024 * 1024;
 // stack-store instruction in a function's own prologue).
 unsigned int sceUserMainThreadStackSize = 4 * 1024 * 1024;
 
-// Advena native logical UI/canvas resolution: 400x240 (scales to Vita 960x544)
-#define GAME_W 400
-#define GAME_H 240
+// Advena native logical UI/canvas resolution: 480x320 (as defined in
+// AdvenaLauncher.java: gameScreenWidth = 480, gameScreenHeight = 320).
+// The software rasterizer renders to this 480x320 buffer, and glResize
+// scales it to fill the Vita's 960x544 screen.
+#define GAME_W 480
+#define GAME_H 320
 #define SCREEN_W 960
 #define SCREEN_H 544
 
-#define ENGINE_LOGICAL_W 400
-#define ENGINE_LOGICAL_H 240
+#define ENGINE_LOGICAL_W 480
+#define ENGINE_LOGICAL_H 320
 #define EVENT_KEY_DOWN   2
 #define EVENT_KEY_UP     3
 #define EVENT_TOUCH_DOWN 23
@@ -95,52 +98,52 @@ static void (* NativePauseClet)(void *env, void *obj);
 static void (* handleCletEvent)(void *env, void *obj, int type, int p1, int p2, int p3);
 
 /*
- * Virtual Touch Hotspots (in 400x240 native design coordinates)
+ * Virtual Touch Hotspots (in 480x320 native design coordinates)
  */
-#define DPAD_CENTER_X     60
-#define DPAD_CENTER_Y     175
-#define DPAD_RADIUS       40
+#define DPAD_CENTER_X     72
+#define DPAD_CENTER_Y     233
+#define DPAD_RADIUS       50
 
 // Left Teamstrike / Quest / Target / "!" button (Button 0 in GVUIPlayerController)
-#define BTN_TARGET_X      24
-#define BTN_TARGET_Y      96
+#define BTN_TARGET_X      29
+#define BTN_TARGET_Y      128
 
 // Right Character Switch Cycle button (Button 1 in GVUIPlayerController)
-#define BTN_CHAR_SWITCH_X 357
-#define BTN_CHAR_SWITCH_Y 127
+#define BTN_CHAR_SWITCH_X 428
+#define BTN_CHAR_SWITCH_Y 169
 
 // Battle Action Controls
-#define BTN_ATTACK_X      345
-#define BTN_ATTACK_Y      185
+#define BTN_ATTACK_X      414
+#define BTN_ATTACK_Y      247
 
-#define BTN_JUMP_LEFT_X   305
-#define BTN_JUMP_LEFT_Y   135
+#define BTN_JUMP_LEFT_X   366
+#define BTN_JUMP_LEFT_Y   180
 
-#define BTN_JUMP_RIGHT_X  345
-#define BTN_JUMP_RIGHT_Y  115
+#define BTN_JUMP_RIGHT_X  414
+#define BTN_JUMP_RIGHT_Y  153
 
 // Bottom Skill Bar (4 slots)
-#define BTN_SKILL1_X      180
-#define BTN_SKILL1_Y      215
+#define BTN_SKILL1_X      216
+#define BTN_SKILL1_Y      287
 
-#define BTN_SKILL2_X      220
-#define BTN_SKILL2_Y      215
+#define BTN_SKILL2_X      264
+#define BTN_SKILL2_Y      287
 
-#define BTN_SKILL3_X      260
-#define BTN_SKILL3_Y      215
+#define BTN_SKILL3_X      312
+#define BTN_SKILL3_Y      287
 
-#define BTN_SKILL4_X      300
-#define BTN_SKILL4_Y      215
+#define BTN_SKILL4_X      360
+#define BTN_SKILL4_Y      287
 
 // Top Bar Elements
-#define BTN_PARTY1_X      45
-#define BTN_PARTY1_Y      20
+#define BTN_PARTY1_X      54
+#define BTN_PARTY1_Y      27
 
-#define BTN_BAG_X         200
-#define BTN_BAG_Y         20
+#define BTN_BAG_X         240
+#define BTN_BAG_Y         27
 
-#define BTN_PAUSE_X       380
-#define BTN_PAUSE_Y       20
+#define BTN_PAUSE_X       456
+#define BTN_PAUSE_Y       27
 
 typedef struct {
     int active;
@@ -253,10 +256,9 @@ int main() {
     audio_init();
 
     // Native initialization (400x240 native UI/logical canvas, 960x544 Vita display).
-    // MUST use the real Advena logical canvas (400x240), not GAME_W/GAME_H (480x320):
-    // this is what GVUIPlayerController's button-position formulas are anchored
-    // against (see ENGINE_LOGICAL_W/H comment above) -- fixes the Teamstrike [T]
-    // button (and other UI buttons) rendering off from their intended position.
+    // This matches the config used since the very first working commit
+    // (26074c4) -- confirmed by diffing against it -- so it is not the
+    // source of the crop/zoom regression (see GAME_W/GAME_H comment above).
     if (NativeInitWithBufferSize) {
         l_info("Calling NativeInitWithBufferSize(%d, %d)...", ENGINE_LOGICAL_W, ENGINE_LOGICAL_H);
         NativeInitWithBufferSize(&jni, NULL, ENGINE_LOGICAL_W, ENGINE_LOGICAL_H);
@@ -415,14 +417,16 @@ int main() {
         }
         old_cross = cross_down;
 
-        // Circle (O) -> Forward / Right Jump in battle (Key -4)
+        // Circle (O) -> Forward / Right Jump in battle (Key -4), Back/Cancel in menus (-16)
         int circle_down = (pad.buttons & SCE_CTRL_CIRCLE) != 0;
         if (circle_down && !old_circle) {
-            l_info("[CTRL] CIRCLE (O) DOWN -> Right Jump (Key %d)", KEY_JUMP_RIGHT);
+            l_info("[CTRL] CIRCLE (O) DOWN -> Right Jump (Key %d) / Back (Key %d)", KEY_JUMP_RIGHT, KEY_MENU_BACK);
             send_key_event(KEY_JUMP_RIGHT, 1);
+            send_key_event(KEY_MENU_BACK, 1);
         }
         if (!circle_down && old_circle) {
             send_key_event(KEY_JUMP_RIGHT, 0);
+            send_key_event(KEY_MENU_BACK, 0);
         }
         old_circle = circle_down;
 

@@ -34,8 +34,8 @@ int gfa_font_break_text(float px, const uint32_t *cps, int n, float max_width);
 // pen_x, baseline en baseline_y. color es ARGB no premultiplicado (el alfa
 // del color escala la cobertura, igual que Paint.setColor). Devuelve el
 // ancho avanzado en px.
-float gfa_font_draw_line(float px, const uint32_t *cps, int n,
-                         uint32_t *buf, int bw, int bh,
-                         float pen_x, float baseline_y, uint32_t color);
+float gfa_font_draw_line(float px, const uint32_t *cps, int n, uint32_t *buf,
+                         int bw, int bh, float pen_x, float baseline_y,
+                         uint32_t color);
 
 #endif
