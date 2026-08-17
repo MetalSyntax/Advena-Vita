@@ -148,9 +148,17 @@
 - **Problema:** El bucle de entrada en `main.c` enviaba tanto el KeyCode físico (`KEY_WALK_LEFT`) como un evento táctil sintetizado (`update_virtual_dpad`). El D-Pad virtual interno del motor (`GVUIDirectionPad::checkHitRegion`) interpretaba la posición angular del toque sintético como `KEY_WALK_DOWN` (0x38), enviando eventos conflictivos que anulaban la dirección deseada.
 - **Solución (`source/main.c`):** Se eliminó la sintetización de toques virtuales para botones físicos. Los botones físicos y sticks ahora inyectan exclusivamente sus KeyCodes nativos limpios (`50`, `56`, `52`, `54`, etc.) al motor sin interferir con la pantalla táctil real.
 
-### Bug 11: Partidas guardadas no cargaban (`GsFSFileSize == 0`) debido a desalineación de la estructura `stat64_bionic`
-- **Problema:** En `source/reimpl/io.h`, la estructura `stat64_bionic` tenía `__attribute__((__packed__))` pero carecía del padding de 4 bytes antes de `st_size`. Esto causaba que `st_size` se ubicara en el offset `0x2C` en lugar de `0x30` (esperado por la ABI de 32 bits de Android Bionic en `MC_fsFileAttribute`). En consecuencia, `MC_fsFileAttribute` leía la palabra alta de 32 bits (`0`) desde el offset `0x30`, haciendo que `GsFSFileSize` siempre retornara tamaño `0` y `CGsEncryptFile::LoadBegin` abortara la carga de todas las partidas guardadas.
-- **Solución (`source/reimpl/io.h`):** Se insertó el campo `unsigned char __pad4[4];` alineando exactamente `st_size` al offset `0x30` (48 bytes), permitiendo que `GsFSFileSize` y `CGsEncryptFile::LoadBegin` lean el tamaño real del archivo y carguen exitosamente las partidas guardadas.
+### Bug 11: Alineación de estructura `stat64_bionic` para tamaño de archivos de guardado
+- **Problema:** En `source/reimpl/io.h`, la estructura `stat64_bionic` tenía `__attribute__((__packed__))` pero carecía del padding de 4 bytes antes de `st_size`. Esto causaba que `st_size` se ubicara en el offset `0x2C` en lugar de `0x30` (esperado por la ABI de 32 bits de Android Bionic en `MC_fsFileAttribute`).
+- **Solución (`source/reimpl/io.h`):** Se insertó el campo `unsigned char __pad4[4];` alineando exactamente `st_size` al offset `0x30` (48 bytes), permitiendo que `GsFSFileSize` lea el tamaño real del archivo en el sistema de archivos de la Vita.
+- **Estado Actual:** La lectura de metadatos de archivos de guardado está corregida, pero el flujo completo de carga de partidas guardadas in-game permanece pendiente de depuración detallada para una sesión posterior.
+
+### Bug 12: Pipeline de visualización y adaptación de resolución completa (480x320 -> 960x544)
+- **Problema:** Al intentar adaptar la pantalla a la PS Vita, se produjeron desalineaciones y cortes de bordes (pérdida de la barra de retratos de héroes superior en combate y del botón de cierre [X] en menús/opciones) si la altura interna se reducía a 240px o si se usaban offsets arbitrarios.
+- **Solución:**
+  1. Se verificó que el canvas lógico nativo de Advena en Android es de **480x320** (`AdvenaLauncher.java`).
+  2. Se configuraron `NativeInitWithBufferSize(480, 320)` y `NativeInitDeviceInfo(480, 320)` para que el motor renderice el 100% de los elementos y capas de UI en el buffer interno.
+  3. Se configuró `NativeResize(960, 544)` (`glResize`) para mapear el viewport y matriz ortográfica a la resolución nativa completa de la PS Vita (960x544), logrando que el juego ocupe toda la pantalla de extremo a extremo sin pérdida de información visual ni cortes de interfaz.
 
 ---
 
