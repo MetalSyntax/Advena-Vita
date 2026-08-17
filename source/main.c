@@ -398,15 +398,7 @@ int main() {
         old_left  = left_pressed;
         old_right = right_pressed;
 
-        // Virtual D-Pad Touch
-        int dpad_dx = 0, dpad_dy = 0;
-        if (up_pressed)    dpad_dy -= 1;
-        if (down_pressed)  dpad_dy += 1;
-        if (left_pressed)  dpad_dx -= 1;
-        if (right_pressed) dpad_dx += 1;
-        update_virtual_dpad(dpad_dx, dpad_dy);
-
-        // Cross (X) -> Attack / NPC Talk / Action (Key 53)
+        // Cross (X) -> Attack / NPC Talk / Action / Confirm (Key 53)
         int cross_down = (pad.buttons & SCE_CTRL_CROSS) != 0;
         if (cross_down && !old_cross) {
             l_info("[CTRL] CROSS (X) DOWN -> Attack / Action (Key %d)", KEY_ATTACK);
@@ -417,20 +409,18 @@ int main() {
         }
         old_cross = cross_down;
 
-        // Circle (O) -> Forward / Right Jump in battle (Key -4), Back/Cancel in menus (-16)
+        // Circle (O) -> Right / Forward Jump in battle (Key -4)
         int circle_down = (pad.buttons & SCE_CTRL_CIRCLE) != 0;
         if (circle_down && !old_circle) {
-            l_info("[CTRL] CIRCLE (O) DOWN -> Right Jump (Key %d) / Back (Key %d)", KEY_JUMP_RIGHT, KEY_MENU_BACK);
+            l_info("[CTRL] CIRCLE (O) DOWN -> Right Jump (Key %d)", KEY_JUMP_RIGHT);
             send_key_event(KEY_JUMP_RIGHT, 1);
-            send_key_event(KEY_MENU_BACK, 1);
         }
         if (!circle_down && old_circle) {
             send_key_event(KEY_JUMP_RIGHT, 0);
-            send_key_event(KEY_MENU_BACK, 0);
         }
         old_circle = circle_down;
 
-        // Triangle (Δ) -> Backward / Left Jump in battle (Key -3)
+        // Triangle (Δ) -> Left / Backward Jump in battle (Key -3)
         int triangle_down = (pad.buttons & SCE_CTRL_TRIANGLE) != 0;
         if (triangle_down && !old_triangle) {
             l_info("[CTRL] TRIANGLE (Δ) DOWN -> Left Jump (Key %d)", KEY_JUMP_LEFT);
@@ -447,100 +437,88 @@ int main() {
         int rstick_down  = (pad.ry > 192);
         int rstick_right = (pad.rx > 192);
 
-        // Square (□) / Right Stick Left -> Skill 1 in battle (Key -13), Submenu in menus (-6)
+        // Square (□) / Right Stick Left -> Skill 1 (Key -13)
         int square_down = (pad.buttons & SCE_CTRL_SQUARE) != 0;
         int skill1_down = square_down || rstick_left;
         if (skill1_down && !old_square && !old_rstick_left) {
-            l_info("[CTRL] SQUARE / R-STICK LEFT DOWN -> Skill 1 (Key %d, Soft1 %d, Touch %d,%d)", KEY_SKILL1, KEY_MENU_SOFT1, g_btn_skill1.x, g_btn_skill1.y);
+            l_info("[CTRL] SQUARE / R-STICK LEFT DOWN -> Skill 1 (Key %d)", KEY_SKILL1);
             send_key_event(KEY_SKILL1, 1);
-            send_key_event(KEY_MENU_SOFT1, 1);
         }
         if (!skill1_down && (old_square || old_rstick_left)) {
             send_key_event(KEY_SKILL1, 0);
-            send_key_event(KEY_MENU_SOFT1, 0);
         }
-        update_virtual_button(&g_btn_skill1, skill1_down);
         old_square = square_down;
         old_rstick_left = rstick_left;
 
         if (rstick_up && !old_rstick_up) {
-            l_info("[CTRL] R-STICK UP DOWN -> Skill 2 (Key %d, Touch %d,%d)", KEY_SKILL2, g_btn_skill2.x, g_btn_skill2.y);
+            l_info("[CTRL] R-STICK UP DOWN -> Skill 2 (Key %d)", KEY_SKILL2);
             send_key_event(KEY_SKILL2, 1);
         }
         if (!rstick_up && old_rstick_up) {
             send_key_event(KEY_SKILL2, 0);
         }
-        update_virtual_button(&g_btn_skill2, rstick_up);
         old_rstick_up = rstick_up;
 
         if (rstick_down && !old_rstick_down) {
-            l_info("[CTRL] R-STICK DOWN DOWN -> Skill 3 (Key %d, Touch %d,%d)", KEY_SKILL3, g_btn_skill3.x, g_btn_skill3.y);
+            l_info("[CTRL] R-STICK DOWN DOWN -> Skill 3 (Key %d)", KEY_SKILL3);
             send_key_event(KEY_SKILL3, 1);
         }
         if (!rstick_down && old_rstick_down) {
             send_key_event(KEY_SKILL3, 0);
         }
-        update_virtual_button(&g_btn_skill3, rstick_down);
         old_rstick_down = rstick_down;
 
         if (rstick_right && !old_rstick_right) {
-            l_info("[CTRL] R-STICK RIGHT DOWN -> Skill 4 (Key %d, Touch %d,%d)", KEY_SKILL4, g_btn_skill4.x, g_btn_skill4.y);
+            l_info("[CTRL] R-STICK RIGHT DOWN -> Skill 4 (Key %d)", KEY_SKILL4);
             send_key_event(KEY_SKILL4, 1);
         }
         if (!rstick_right && old_rstick_right) {
             send_key_event(KEY_SKILL4, 0);
         }
-        update_virtual_button(&g_btn_skill4, rstick_right);
         old_rstick_right = rstick_right;
 
-        // L1 Trigger -> Teamstrike (T Button) (Key 48) / Tab (1000)
+        // L1 Trigger -> Teamstrike (T Button) (Key 48)
         int l1_down = (pad.buttons & SCE_CTRL_L1) != 0;
         if (l1_down && !old_l1) {
-            l_info("[CTRL] L1 TRIGGER DOWN -> Teamstrike [T] (Key %d, Tab 1000)", KEY_TEAMSTRIKE);
+            l_info("[CTRL] L1 TRIGGER DOWN -> Teamstrike [T] (Key %d)", KEY_TEAMSTRIKE);
             send_key_event(KEY_TEAMSTRIKE, 1);
-            send_key_event(1000, 1);
         }
         if (!l1_down && old_l1) {
             send_key_event(KEY_TEAMSTRIKE, 0);
-            send_key_event(1000, 0);
         }
         old_l1 = l1_down;
 
-        // R1 Trigger -> Character Tag / Cycle (Key -12) / Tab (1004)
+        // R1 Trigger -> Character Tag / Swap (Key -12)
         int r1_down = (pad.buttons & SCE_CTRL_R1) != 0;
         if (r1_down && !old_r1) {
-            l_info("[CTRL] R1 TRIGGER DOWN -> Character Tag (Key %d, Tab 1004)", KEY_CHAR_SWITCH);
+            l_info("[CTRL] R1 TRIGGER DOWN -> Character Tag (Key %d)", KEY_CHAR_SWITCH);
             send_key_event(KEY_CHAR_SWITCH, 1);
-            send_key_event(1004, 1);
         }
         if (!r1_down && old_r1) {
             send_key_event(KEY_CHAR_SWITCH, 0);
-            send_key_event(1004, 0);
         }
         old_r1 = r1_down;
 
-        // Select -> Inventory / Bag (240, 20) & Cancel/Back in menus (-16)
+        // Select -> Cancel / Back / Inventory in menus (-16)
         int select_down = (pad.buttons & SCE_CTRL_SELECT) != 0;
         if (select_down && !old_select) {
-            l_info("[CTRL] SELECT DOWN -> Bag / Cancel (Key %d, Touch %d,%d)", KEY_MENU_BACK, g_btn_bag.x, g_btn_bag.y);
+            l_info("[CTRL] SELECT DOWN -> Back / Menu (Key %d)", KEY_MENU_BACK);
             send_key_event(KEY_MENU_BACK, 1);
         }
         if (!select_down && old_select) {
             send_key_event(KEY_MENU_BACK, 0);
         }
-        update_virtual_button(&g_btn_bag, select_down);
         old_select = select_down;
 
-        // Start -> Pause (455, 20) & Soft3 Menu key (-8)
+        // Start -> Pause Menu (Key -8)
         int start_down = (pad.buttons & SCE_CTRL_START) != 0;
         if (start_down && !old_start) {
-            l_info("[CTRL] START DOWN -> Pause (Key %d, Touch %d,%d)", KEY_MENU_PAUSE, g_btn_pause.x, g_btn_pause.y);
+            l_info("[CTRL] START DOWN -> Pause (Key %d)", KEY_MENU_PAUSE);
             send_key_event(KEY_MENU_PAUSE, 1);
         }
         if (!start_down && old_start) {
             send_key_event(KEY_MENU_PAUSE, 0);
         }
-        update_virtual_button(&g_btn_pause, start_down);
         old_start = start_down;
 
         // 3. Render Frame

@@ -50,6 +50,7 @@ typedef struct __attribute__((__packed__)) stat64_bionic {
     gid_t st_gid;
     unsigned long long st_rdev;
     unsigned char __pad3[4];
+    unsigned char __pad4[4];
     long long st_size;
     unsigned long st_blksize;
     unsigned long long st_blocks;

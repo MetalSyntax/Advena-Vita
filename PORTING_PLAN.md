@@ -144,6 +144,14 @@
   3. El rasterizador por software ahora renderiza el lienzo completo a 480x320 y `glResize(960, 544)` lo proyecta estirado a pantalla completa en la PS Vita sin perder ningún botón o información visual.
   4. Se recalibraron los hotspots táctiles virtuales para el espacio de 480x320.
 
+### Bug 10: Comportamiento errático del D-Pad físico (movimiento hacia abajo al presionar izquierda) y colisión de eventos táctiles sintetizados
+- **Problema:** El bucle de entrada en `main.c` enviaba tanto el KeyCode físico (`KEY_WALK_LEFT`) como un evento táctil sintetizado (`update_virtual_dpad`). El D-Pad virtual interno del motor (`GVUIDirectionPad::checkHitRegion`) interpretaba la posición angular del toque sintético como `KEY_WALK_DOWN` (0x38), enviando eventos conflictivos que anulaban la dirección deseada.
+- **Solución (`source/main.c`):** Se eliminó la sintetización de toques virtuales para botones físicos. Los botones físicos y sticks ahora inyectan exclusivamente sus KeyCodes nativos limpios (`50`, `56`, `52`, `54`, etc.) al motor sin interferir con la pantalla táctil real.
+
+### Bug 11: Partidas guardadas no cargaban (`GsFSFileSize == 0`) debido a desalineación de la estructura `stat64_bionic`
+- **Problema:** En `source/reimpl/io.h`, la estructura `stat64_bionic` tenía `__attribute__((__packed__))` pero carecía del padding de 4 bytes antes de `st_size`. Esto causaba que `st_size` se ubicara en el offset `0x2C` en lugar de `0x30` (esperado por la ABI de 32 bits de Android Bionic en `MC_fsFileAttribute`). En consecuencia, `MC_fsFileAttribute` leía la palabra alta de 32 bits (`0`) desde el offset `0x30`, haciendo que `GsFSFileSize` siempre retornara tamaño `0` y `CGsEncryptFile::LoadBegin` abortara la carga de todas las partidas guardadas.
+- **Solución (`source/reimpl/io.h`):** Se insertó el campo `unsigned char __pad4[4];` alineando exactamente `st_size` al offset `0x30` (48 bytes), permitiendo que `GsFSFileSize` y `CGsEncryptFile::LoadBegin` lean el tamaño real del archivo y carguen exitosamente las partidas guardadas.
+
 ---
 
 ## 4. Fases del Port (Checklist Actualizado)
