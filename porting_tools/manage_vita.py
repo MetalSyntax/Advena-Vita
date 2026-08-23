@@ -114,11 +114,30 @@ def create_directory_if_not_exists(ftp, path):
         except all_errors as e:
             print(f"[-] No se pudo crear el directorio '{path}': {e}")
 
+def _format_vpk_desc(filename):
+    lower = filename.lower()
+    if "debug_verbose" in lower:
+        return " [Debug Verboso: FalsoJNI ALL + GL]"
+    elif "relwithdebinfo" in lower:
+        return " [Release + Debug Info]"
+    elif "debug" in lower:
+        return " [Debug Estándar]"
+    elif "release" in lower:
+        return " [Release Optimizado]"
+    elif "cg" in lower:
+        return " [Shaders CG]"
+    elif "glsl_dump" in lower:
+        return " [GLSL + Shader Dump]"
+    elif "minsizerel" in lower:
+        return " [MinSizeRel]"
+    elif filename == "advena.vpk":
+        return " [Build Activo]"
+    return ""
+
 def list_local_vpks():
     """Todos los .vpk en BUILD_DIR/, mas reciente primero -- detecta
-    automaticamente cualquier variante de build (build.sh genera un nombre
-    de VPK distinto por flag, ver build.sh --help en la cabecera del
-    archivo) sin que este script tenga que conocer sus nombres de antemano."""
+    automaticamente cualquier variante de build (Release, Debug, Verbose, CG, etc.)
+    sin tener que hardcodear cada nombre."""
     project_root = os.path.dirname(BASE_DIR)
     build_dir = os.path.join(project_root, BUILD_DIR)
     if not os.path.isdir(build_dir):
@@ -133,18 +152,20 @@ def list_local_vpks():
 
 def choose_vpk():
     """Si hay un solo VPK lo usa directo tras confirmacion; si hay varios, muestra un menu
-    (tamano + fecha de modificacion para distinguir variantes de un vistazo)
+    (tamano + fecha de modificacion + variante para distinguir variantes de un vistazo)
     y deja elegir -- 0 o 'q' regresa al menu principal."""
     vpks = list_local_vpks()
     if not vpks:
         print(f"[-] No se encontró ningún .vpk en '{BUILD_DIR}/'. Compilá el proyecto primero "
-              f"(build.sh o build_and_install.sh, opción 5 de este menú).")
+              f"(build.sh o build_and_install.sh, opción del menú).")
         return None
 
     if len(vpks) == 1:
+        fname = os.path.basename(vpks[0])
+        desc = _format_vpk_desc(fname)
         size_mb = os.path.getsize(vpks[0]) / (1024 * 1024)
         mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(vpks[0])))
-        print(f"[*] Un solo VPK encontrado: {os.path.basename(vpks[0])} ({size_mb:.2f} MB, {mtime})")
+        print(f"[*] Un solo VPK encontrado: {fname}{desc} ({size_mb:.2f} MB, {mtime})")
         choice = input("¿Deseas subir este VPK a la PS Vita? [S/n] (0 / 'q' para volver al menú): ").strip().lower()
         if choice in ['0', 'q', 'n', 'no', 'c', 'cancel', 'r', 'volver']:
             print("[*] Operación cancelada. Regresando al menú principal...")
@@ -153,10 +174,12 @@ def choose_vpk():
 
     print(f"[*] Se encontraron {len(vpks)} VPKs en '{BUILD_DIR}/' (más reciente primero):")
     for i, path in enumerate(vpks, 1):
+        fname = os.path.basename(path)
+        desc = _format_vpk_desc(fname)
         size_mb = os.path.getsize(path) / (1024 * 1024)
         mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(path)))
-        print(f"  {i}. {os.path.basename(path):<40} {size_mb:6.2f} MB   {mtime}")
-    print(f"  0. [ Regresar al menú principal / Cancelar ]\n")
+        print(f"  {i:2d}. {fname:<30}{desc:<35} {size_mb:6.2f} MB   {mtime}")
+    print(f"   0. [ Regresar al menú principal / Cancelar ]\n")
 
     choice = input(f"Elegí el VPK a subir [1-{len(vpks)}, 0 para volver] (Enter = el más reciente): ").strip()
     if not choice:
@@ -656,6 +679,19 @@ def verify_data_assets():
         print("[+] Todas las carpetas coinciden en cantidad de archivos.")
 
 
+def compile_variant():
+    """Ejecuta el menú de compilación interactivo para generar cualquier variante de build."""
+    project_root = os.path.dirname(BASE_DIR)
+    build_script = os.path.join(BASE_DIR, "build", "build_and_install.sh")
+    if os.path.exists(build_script):
+        subprocess.run(["bash", build_script])
+    else:
+        root_build_sh = os.path.join(project_root, "build.sh")
+        if os.path.exists(root_build_sh):
+            subprocess.run(["bash", root_build_sh])
+        else:
+            print("[-] No se encontró el script de build.")
+
 def run_script(folder, script_name, is_python=False):
     script_path = os.path.join(BASE_DIR, folder, script_name)
     if os.path.exists(script_path):
@@ -672,23 +708,66 @@ def run_script(folder, script_name, is_python=False):
         print(f"[-] Error: No se encontró el script en '{script_path}'.")
 
 def main():
+    if len(sys.argv) > 1:
+        arg = sys.argv[1].lower()
+        if arg in ("--upload-eboot", "-e"):
+            upload_eboot()
+            return
+        elif arg in ("--upload-vpk", "-v"):
+            upload_vpk()
+            return
+        elif arg in ("--compile", "-c"):
+            compile_variant()
+            return
+        elif arg in ("--vita3k", "-k"):
+            run_script("build", "deploy_and_launch_vita3k.sh")
+            return
+        elif arg in ("--download-logs", "--download-dump", "-d"):
+            download_latest_debug_files()
+            return
+        elif arg in ("--sync-shaders", "-s"):
+            sync_shaders()
+            return
+        elif arg in ("--check-cg",):
+            check_libshacccg()
+            return
+        elif arg in ("--verify-data",):
+            verify_data_assets()
+            return
+        elif arg in ("--disconnect-vpn",):
+            disconnect_proton_vpn()
+            return
+        elif arg in ("--help", "-h"):
+            print("Uso: manage_vita.py [opcion]")
+            print("Opciones:")
+            print("  --compile, -c         Asistente de compilación y despliegue (Vita3K/PS Vita)")
+            print("  --vita3k, -k          Desplegar y lanzar en Vita3K (macOS)")
+            print("  --upload-eboot, -e    Subir SOLO eboot.bin a ux0:app/ADVENA001/")
+            print("  --upload-vpk, -v      Subir VPK a ux0:downloads/")
+            print("  --download-dump, -d   Descargar último crash dump y log")
+            print("  --sync-shaders, -s    Sincronizar shaders (GLSL -> CG)")
+            print("  --check-cg            Chequear libshacccg.suprx por FTP")
+            print("  --verify-data         Verificar archivos de assets en Vita")
+            print("  (Sin argumentos)      Abrir menú interactivo con flechas")
+            return
+
     options = [
-        ("Subir VPK compilado a la PS Vita (ux0:downloads/)", upload_vpk),
-        (f"Subir SOLO el eboot.bin a la PS Vita (ux0:app/{VITA_TITLEID}/)", upload_eboot),
-        ("Descargar el último dump (.dmp) y log (.txt) de Advena", download_latest_debug_files),
-        ("Desconectar Proton VPN ahora mismo", disconnect_proton_vpn),
-        ("Ejecutar clean_macos.sh (build/)", lambda: run_script("build", "clean_macos.sh")),
-        ("Ejecutar build_and_install.sh (build/)", lambda: run_script("build", "build_and_install.sh")),
-        ("Ejecutar deploy_and_launch_vita3k.sh (build/)", lambda: run_script("build", "deploy_and_launch_vita3k.sh")),
-        ("Ejecutar decompile_all.sh (build/)", lambda: run_script("build", "decompile_all.sh")),
-        ("Ejecutar run_tests.sh (tests/)", lambda: run_script("tests", "run_tests.sh")),
-        ("Ejecutar get_dump.sh (misc/)", lambda: run_script("misc", "get_dump.sh")),
-        ("Descargar Shaders GLSL dumpeados", download_glsl_shaders),
-        ("Subir Shaders CG traducidos (assets/cg/ -> Vita)", upload_cg_shaders),
-        ("Sincronizar Shaders (descargar GLSL + subir CG)", sync_shaders),
-        ("Chequear libshacccg.suprx (tamano/existencia por FTP)", check_libshacccg),
-        ("Verificar data/ completa (conteo de archivos local vs Vita)", verify_data_assets),
-        ("Salir", None)
+        ("🚀 Compilar y Desplegar (Asistente guiado: Vita3K / PS Vita, Debug / Release)", compile_variant),
+        ("🎮 Desplegar y Lanzar en Vita3K (Emulador macOS)", lambda: run_script("build", "deploy_and_launch_vita3k.sh")),
+        (f"⚡ Subir SOLO eboot.bin a la PS Vita (ux0:app/{VITA_TITLEID}/ - Rápido)", upload_eboot),
+        ("📦 Subir VPK compilado a la PS Vita (ux0:downloads/)", upload_vpk),
+        ("🔍 Descargar el último dump (.dmp) y log (.txt) de Advena", download_latest_debug_files),
+        ("🛡️  Desconectar Proton VPN ahora mismo", disconnect_proton_vpn),
+        ("🧹 Ejecutar clean_macos.sh (Limpiar archivos basura ._* en build/)", lambda: run_script("build", "clean_macos.sh")),
+        ("🔬 Ejecutar decompile_all.sh (Jadx + devrvk/so-decompiler en build/)", lambda: run_script("build", "decompile_all.sh")),
+        ("🧪 Ejecutar run_tests.sh (tests/)", lambda: run_script("tests", "run_tests.sh")),
+        ("📥 Ejecutar get_dump.sh (misc/)", lambda: run_script("misc", "get_dump.sh")),
+        ("🎨 Descargar Shaders GLSL dumpeados", download_glsl_shaders),
+        ("📤 Subir Shaders CG traducidos (assets/cg/ -> Vita)", upload_cg_shaders),
+        ("🔄 Sincronizar Shaders (descargar GLSL + subir CG)", sync_shaders),
+        ("🧩 Chequear libshacccg.suprx (tamaño/existencia por FTP)", check_libshacccg),
+        ("📂 Verificar data/ completa (conteo de archivos local vs Vita)", verify_data_assets),
+        ("❌ Salir", None)
     ]
     
     current_idx = 0

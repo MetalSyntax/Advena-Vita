@@ -104,6 +104,97 @@ static void resolve_path_soloader(const char *path, char *out, size_t out_len) {
     snprintf(out, out_len, "ux0:data/advena/assets/%s", path);
 }
 
+// Safety net for the "save disappears after a crash" failure mode: logs
+// (advena_006.log:39-51) confirm the engine's own boot routine reopens
+// s0.dat/s1.dat/s2.dat/g.dat in truncating "w+" mode. That is harmless the
+// first time it creates a missing slot, but if the game is later killed by
+// a Data Abort while one of these files is open (before it can rewrite the
+// full content it just truncated), the previous save is destroyed even
+// though the file itself is still present on disk (now empty). Since the
+// title's own file handles are never cleanly closed on an abrupt kill, the
+// next boot can hit that same truncating path again on a slot that still
+// held a real save. Back up any existing non-empty save file before letting
+// a truncating open destroy it, so the last known-good copy survives under
+// a ".bak" name even if the process dies mid-write.
+static int backup_existing_save_if_present(const char *resolved, char *backup_out, size_t backup_out_len) {
+    struct stat st;
+    if (stat(resolved, &st) != 0 || st.st_size <= 0) return 0;
+
+    snprintf(backup_out, backup_out_len, "%s.bak", resolved);
+    if (rename(resolved, backup_out) == 0) {
+        l_info("[IO] Backed up existing save '%s' (%ld bytes) to '%s' before truncating open.",
+               resolved, (long)st.st_size, backup_out);
+        return 1;
+    }
+
+    l_warn("[IO] Failed to back up existing save '%s' before truncating open.", resolved);
+    return 0;
+}
+
+// Confirmed on-console (advena_028.log:138-161): the engine's own truncating
+// "w+" open on a save file (via MC_fsOpen/MC_fsWrite, see
+// CSaveMgr::SavePlayData -> CGsEncryptFile::SaveEnd -> CGsFile::Save) can
+// leave the file at 0 bytes -- the very next LoadBegin on that same slot
+// reads GsFSFileSize()==0 and CGsEncryptFile::ReadPtr's NULL-buffer guard
+// fires, proving the write never actually landed. This happens with NO
+// crash involved, so the backup above is necessary but not sufficient: the
+// player is left with an empty slot until someone notices the ".bak" file.
+// Track every truncating open we backed up and, once it's closed, check
+// whether real content actually made it to disk; if the file is still
+// empty, restore the backup automatically instead of leaving the save gone.
+#define MAX_TRACKED_SAVE_OPENS 4
+typedef struct {
+    FILE *fp;
+    char path[256];
+    char backup[300];
+} tracked_save_open_t;
+static tracked_save_open_t g_tracked_saves[MAX_TRACKED_SAVE_OPENS];
+
+static void track_save_open(FILE *fp, const char *resolved, const char *backup) {
+    for (int i = 0; i < MAX_TRACKED_SAVE_OPENS; i++) {
+        if (!g_tracked_saves[i].fp) {
+            g_tracked_saves[i].fp = fp;
+            snprintf(g_tracked_saves[i].path, sizeof(g_tracked_saves[i].path), "%s", resolved);
+            snprintf(g_tracked_saves[i].backup, sizeof(g_tracked_saves[i].backup), "%s", backup);
+            return;
+        }
+    }
+    l_warn("[IO] Tracked save-open table full; cannot verify write for '%s'.", resolved);
+}
+
+// Returns the tracked-table index for fp (pre-close bookkeeping), or -1.
+static int find_tracked_save(FILE *fp) {
+    for (int i = 0; i < MAX_TRACKED_SAVE_OPENS; i++) {
+        if (g_tracked_saves[i].fp == fp) return i;
+    }
+    return -1;
+}
+
+static void verify_and_recover_save_close(int idx, long pre_close_pos) {
+    if (idx < 0) return;
+
+    struct stat st;
+    int have_stat = (stat(g_tracked_saves[idx].path, &st) == 0);
+    // Diagnostic: always log what we observed, even when it looks fine, so a
+    // future capture can tell "write never happened" (pre_close_pos == 0)
+    // apart from "write happened but didn't persist to storage"
+    // (pre_close_pos > 0 yet the file reads back as 0 right after close).
+    l_info("[IO] Save close check for '%s': ftell()-before-close=%ld bytes, "
+           "on-disk size after close=%ld bytes.",
+           g_tracked_saves[idx].path, pre_close_pos, have_stat ? (long)st.st_size : -1L);
+
+    if (have_stat && st.st_size == 0) {
+        if (rename(g_tracked_saves[idx].backup, g_tracked_saves[idx].path) == 0) {
+            l_warn("[IO] Save write to '%s' produced an empty file -- restored previous backup.",
+                   g_tracked_saves[idx].path);
+        } else {
+            l_warn("[IO] Save write to '%s' produced an empty file, and restoring the backup "
+                   "'%s' failed too.", g_tracked_saves[idx].path, g_tracked_saves[idx].backup);
+        }
+    }
+    g_tracked_saves[idx].fp = NULL;
+}
+
 FILE * fopen_soloader(const char * filename, const char * mode) {
     if (!filename) return NULL;
 
@@ -116,6 +207,12 @@ FILE * fopen_soloader(const char * filename, const char * mode) {
     char resolved[256];
     resolve_path_soloader(filename, resolved, sizeof(resolved));
 
+    int made_backup = 0;
+    char backup[300];
+    if (mode && mode[0] == 'w' && is_save_basename(path_basename(filename))) {
+        made_backup = backup_existing_save_if_present(resolved, backup, sizeof(backup));
+    }
+
 #ifdef USE_SCELIBC_IO
     FILE* ret = sceLibcBridge_fopen(resolved, mode);
 #else
@@ -126,6 +223,10 @@ FILE * fopen_soloader(const char * filename, const char * mode) {
         l_debug("fopen(%s -> %s, %s): %p", filename, resolved, mode, ret);
     else
         l_warn("fopen(%s -> %s, %s): %p", filename, resolved, mode, ret);
+
+    if (ret && made_backup) {
+        track_save_open(ret, resolved, backup);
+    }
 
     return ret;
 }
@@ -199,13 +300,19 @@ int access_soloader(const char * path, int mode) {
 }
 
 int fclose_soloader(FILE * f) {
+    int tracked_idx = find_tracked_save(f);
 #ifdef USE_SCELIBC_IO
+    long pre_close_pos = (tracked_idx >= 0) ? sceLibcBridge_ftell(f) : -1;
     int ret = sceLibcBridge_fclose(f);
 #else
+    long pre_close_pos = (tracked_idx >= 0) ? ftell(f) : -1;
     int ret = fclose(f);
 #endif
 
     l_debug("fclose(%p): %i", f, ret);
+
+    verify_and_recover_save_close(tracked_idx, pre_close_pos);
+
     return ret;
 }
 

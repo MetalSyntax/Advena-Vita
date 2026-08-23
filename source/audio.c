@@ -168,8 +168,14 @@ void audio_init(void) {
     audio_running = 1;
     audio_thread_id = sceKernelCreateThread("advena_audio_thread", audio_thread, 0x10000100, 0x10000, 0, 0, NULL);
     if (audio_thread_id >= 0) {
+        // Pin the mixer to a core distinct from the main render/logic thread
+        // (see sceKernelChangeThreadCpuAffinityMask in main.c, core 0) so
+        // neither steals cycles from the other. Same technique validated on
+        // real hardware in the sibling Zenonia 4 port (same Gamevil
+        // Nexus2/GxPZx engine family): unconditional, no build flag gate.
+        int affinity_res = sceKernelChangeThreadCpuAffinityMask(audio_thread_id, SCE_KERNEL_CPU_MASK_USER_1);
         sceKernelStartThread(audio_thread_id, 0, NULL);
-        l_success("[Audio] Audio mixer initialized successfully.");
+        l_success("[Audio] Audio mixer initialized (affinity->core 1, res=0x%08x).", affinity_res);
     }
 }
 

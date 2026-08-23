@@ -182,6 +182,223 @@ static void CGsEncryptFile_ReadPtr_patched(void *this_ptr, void *dst, uint32_t l
     kuKernelFlushCaches((void *)ReadPtr_hook.addr, sizeof(ReadPtr_hook.patch_instr));
 }
 
+// ---------------------------------------------------------------------------
+// Crash fix: CUIMenuStatus::PointerRelease (SO offset 0xe8608)
+// ---------------------------------------------------------------------------
+// Decompilation (out_ghidra.c:173961-173970) shows the very first 10 lines
+// dereference this+0xe0 through this+0xf0 WITHOUT any NULL checks:
+//
+//   *(undefined *)(*(int *)(this + 0xe0) + 0x12) = 0;
+//   *(undefined *)(*(int *)(this + 0xe0) + 0x13) = 0;
+//   *(undefined *)(*(int *)(this + 0xe4) + 0x12) = 0;
+//   *(undefined *)(*(int *)(this + 0xe4) + 0x13) = 0;
+//   ...
+//   *(undefined *)(*(int *)(this + 0xf0) + 0x12) = 0;
+//   *(undefined *)(*(int *)(this + 0xf0) + 0x13) = 0;
+//
+// If the CUIMenuStatus object exists (vtable is valid, PointerRelease is
+// called) but its sub-objects at 0xe0..0xf0 were never allocated (e.g.
+// during a load-game UI transition where the menu is partially
+// constructed), the first dereference of NULL causes the Data Abort.
+// The 5 fields are pointers to UI display elements / touch areas.
+//
+// Fix: check all 5 pointers at entry. If ANY is NULL, skip the function
+// entirely (the menu is not ready to handle the touch release).
+typedef void (*fn_CUIMenuStatus_PointerRelease)(void *this_ptr, void *param_1);
+static so_hook CUIMenuStatus_PR_hook;
+
+static void CUIMenuStatus_PR_patched(void *this_ptr, void *param_1) {
+    int *sub = (int *)((char *)this_ptr + 0xe0);
+    for (int i = 0; i < 5; i++) {
+        if (sub[i] == 0) {
+            l_warn("[Patch] CUIMenuStatus::PointerRelease: sub-object at 0x%x is NULL "
+                   "(menu not fully initialised), skipping.", 0xe0 + i * 4);
+            return;
+        }
+    }
+    kuKernelCpuUnrestrictedMemcpy((void *)CUIMenuStatus_PR_hook.addr,
+                                  CUIMenuStatus_PR_hook.orig_instr,
+                                  sizeof(CUIMenuStatus_PR_hook.orig_instr));
+    kuKernelFlushCaches((void *)CUIMenuStatus_PR_hook.addr,
+                        sizeof(CUIMenuStatus_PR_hook.orig_instr));
+    ((fn_CUIMenuStatus_PointerRelease)CUIMenuStatus_PR_hook.thumb_addr)(this_ptr, param_1);
+    kuKernelCpuUnrestrictedMemcpy((void *)CUIMenuStatus_PR_hook.addr,
+                                  CUIMenuStatus_PR_hook.patch_instr,
+                                  sizeof(CUIMenuStatus_PR_hook.patch_instr));
+    kuKernelFlushCaches((void *)CUIMenuStatus_PR_hook.addr,
+                        sizeof(CUIMenuStatus_PR_hook.patch_instr));
+}
+
+// ---------------------------------------------------------------------------
+// Crash fix: CUISubMenuReinForced::PointerRelease (SO offset 0xfcb78)
+// ---------------------------------------------------------------------------
+// Decompilation (out_ghidra.c:190443-190452) shows two branches, both with
+// raw pointer dereferences and NO NULL guards:
+//
+//   if (this[0xec] == 0) {
+//       *(undefined *)(*(int *)(this + 0xd8) + 0x12) = 0;  // line 190444
+//       ...
+//   } else {
+//       piVar1 = (int *)(**(code **)(**(int **)(*(int *)(this + 0x44) + 0x14)
+//                          + 0x4c))(...);                     // line 190452
+//       ...
+//   }
+//
+// When the Reinforced sub-menu is partially constructed during a load
+// transition, this+0xd8 (path A) or this+0x44 (path B) can be NULL.
+// Fix: validate the pointer used by the active branch before calling the
+// original; skip if NULL.
+//
+// NOTE: "this[0xec]" in the pseudo-C above is Ghidra's byte-array shorthand
+// (its placeholder type for this unresolved class is 1 byte wide), NOT a
+// 4-byte int -- confirmed against the real disassembly at .so+0xfcb86:
+//   fcb86: movs r3, #0xec
+//   fcb88: ldrb  r3, [r0, r3]   ; single-byte load, not ldr (word)
+// Reading it as `int` here would pull in 3 unrelated bytes at +0xed..+0xef
+// and can make this guard pick the WRONG branch (letting the real crash
+// through), so this must be a single-byte read to match.
+typedef void (*fn_CUISubMenuReinForced_PointerRelease)(void *this_ptr, void *param_1);
+static so_hook CUISubMenuReinForced_PR_hook;
+
+static void CUISubMenuReinForced_PR_patched(void *this_ptr, void *param_1) {
+    uint8_t flag = *(uint8_t *)((char *)this_ptr + 0xec);
+    if (flag == 0) {
+        if (*(int *)((char *)this_ptr + 0xd8) == 0) {
+            l_warn("[Patch] CUISubMenuReinForced::PointerRelease: sub-object at 0xd8 "
+                   "is NULL (0xec==0), skipping.");
+            return;
+        }
+    } else {
+        if (*(int *)((char *)this_ptr + 0x44) == 0) {
+            l_warn("[Patch] CUISubMenuReinForced::PointerRelease: sub-object at 0x44 "
+                   "is NULL (0xec!=0), skipping.");
+            return;
+        }
+    }
+    kuKernelCpuUnrestrictedMemcpy((void *)CUISubMenuReinForced_PR_hook.addr,
+                                  CUISubMenuReinForced_PR_hook.orig_instr,
+                                  sizeof(CUISubMenuReinForced_PR_hook.orig_instr));
+    kuKernelFlushCaches((void *)CUISubMenuReinForced_PR_hook.addr,
+                        sizeof(CUISubMenuReinForced_PR_hook.orig_instr));
+    ((fn_CUISubMenuReinForced_PointerRelease)CUISubMenuReinForced_PR_hook.thumb_addr)(this_ptr, param_1);
+    kuKernelCpuUnrestrictedMemcpy((void *)CUISubMenuReinForced_PR_hook.addr,
+                                  CUISubMenuReinForced_PR_hook.patch_instr,
+                                  sizeof(CUISubMenuReinForced_PR_hook.patch_instr));
+    kuKernelFlushCaches((void *)CUISubMenuReinForced_PR_hook.addr,
+                        sizeof(CUISubMenuReinForced_PR_hook.patch_instr));
+}
+
+// ---------------------------------------------------------------------------
+// Crash fix: CCharObject::ClearMsgState (SO offset 0x9746c)
+// ---------------------------------------------------------------------------
+// Root cause traced directly from a live .psp2dmp (Data Abort reproduced
+// while loading a save game): the dump's captured memory pages around PC/LR
+// show the real fault site is a `bl` from CMapMgr::InitHero() (.so+0xca0a4,
+// decompiled at out_ghidra.c:135905-135965) into CCharObject::ClearMsgState()
+// (.so+0x9746c, decompiled at out_ghidra.c:47947-47965) -- confirmed by
+// locating the exact byte pattern of ClearMsgState's prologue in the static
+// .so and matching the call-site offset against the dump's own LR.
+//
+// InitHero() re-derives the hero's on-screen position right after a map/save
+// loads and calls ClearMsgState() on the hero object fetched from
+// CGsSingleton<CTotalObjMgr>::ms_pSingleton+0x5c. ClearMsgState dereferences
+// three pointer fields on `this` with NO NULL checks:
+//   this+0x5c  (a message-box sub-object, invoked virtually twice)
+//   this+0x64  (a message-icon sub-object -- this is what actually faults:
+//               .so+0x9746c: ldr r3,[r0,#0x64]; .so+0x97474: strb r2,[r3,#18])
+//   this+0x74  (a third sub-object, this+0x74 -> [+5] = 0)
+// During the Load Game -> InitHero() transition these UI sub-objects on the
+// hero's CCharObject haven't been (re)constructed yet, so this+0x64 is still
+// NULL and the unconditional strb at .so+0x97474 Data Aborts.
+//
+// Fix: same strategy as the CUIMenuStatus/CUISubMenuReinForced guards above
+// -- if any of the 3 required sub-objects is NULL, there's no message state
+// to clear yet, so skip the call entirely instead of crashing.
+typedef void (*fn_CCharObject_ClearMsgState)(void *this_ptr);
+static so_hook CCharObject_ClearMsgState_hook;
+
+static void CCharObject_ClearMsgState_patched(void *this_ptr) {
+    void *msgbox = *(void **)((char *)this_ptr + 0x5c);
+    void *msgicon = *(void **)((char *)this_ptr + 0x64);
+    void *other = *(void **)((char *)this_ptr + 0x74);
+    if (!msgbox || !msgicon || !other) {
+        l_warn("[Patch] CCharObject::ClearMsgState: sub-object missing (msgbox=%p msgicon=%p "
+               "other=%p), skipping (object not fully initialised yet).", msgbox, msgicon, other);
+        return;
+    }
+
+    kuKernelCpuUnrestrictedMemcpy((void *)CCharObject_ClearMsgState_hook.addr,
+                                  CCharObject_ClearMsgState_hook.orig_instr,
+                                  sizeof(CCharObject_ClearMsgState_hook.orig_instr));
+    kuKernelFlushCaches((void *)CCharObject_ClearMsgState_hook.addr,
+                        sizeof(CCharObject_ClearMsgState_hook.orig_instr));
+    ((fn_CCharObject_ClearMsgState)CCharObject_ClearMsgState_hook.thumb_addr)(this_ptr);
+    kuKernelCpuUnrestrictedMemcpy((void *)CCharObject_ClearMsgState_hook.addr,
+                                  CCharObject_ClearMsgState_hook.patch_instr,
+                                  sizeof(CCharObject_ClearMsgState_hook.patch_instr));
+    kuKernelFlushCaches((void *)CCharObject_ClearMsgState_hook.addr,
+                        sizeof(CCharObject_ClearMsgState_hook.patch_instr));
+}
+
+// ---------------------------------------------------------------------------
+// Crash fix: CSaveMgr::Save (SO offset 0xab1e4)
+// ---------------------------------------------------------------------------
+// Reproduced on-console (logs/advena_029.log + advena-psp2core-1787200198-...
+// .psp2dmp): the crash-dump analysis tool auto-detected the wrong .so base
+// (0x9806f000 instead of the real 0x98000000, the same recurring pitfall
+// documented for Bug 14), which misattributed this crash to unrelated shop/
+// popup functions. Recomputing PC/LR against the real base and the .so's own
+// dynamic symbol table (objdump -T) puts both squarely inside
+// CSaveMgr::Save(): PC = .so+0xab238 (Save()+0x54), LR = .so+0xab223
+// (Save()+0x3f). A stale return address further up the captured stack
+// resolves to CMapMgr::ChangeField()+0x167, confirming the trigger: entering
+// a new map/field fires an autosave via CSaveMgr::Save().
+//
+// Decompiled at out_ghidra.c:75085-75136, CSaveMgr::Save() calls all three
+// of CTotalObjMgr::GetRealPlayer()/GetRealFellow1()/GetRealFellow2() and
+// immediately writes through their results. GetRealFellow1() and
+// GetRealFellow2() are BOTH properly guarded ("if (iVar4 == 0) { ... } else
+// { ...dereference... }"), but GetRealPlayer()'s result is dereferenced
+// completely unconditionally right at the top of the function
+// ("in_r0[...] = *(CSaveMgr *)(iVar3 + 0x7c); ... *(undefined2 *)(iVar3 +
+// 0xb8)") -- no NULL check at all. Right after a Load Game / map transition,
+// the "real player" object isn't necessarily re-attached in CTotalObjMgr yet
+// when ChangeField's autosave fires, so GetRealPlayer() can still be NULL at
+// that exact instant, and the unconditional dereference Data Aborts.
+//
+// Fix: call GetRealPlayer() ourselves before running the original. If it's
+// NULL, skip the autosave entirely for this trigger (no worse than any
+// other event that doesn't happen to call Save() at that moment) instead of
+// crashing the whole process -- which, combined with the truncating "w+"
+// open CSaveMgr::SavePlayData/tagGameData::Save perform on s0.dat/g.dat,
+// is also how a save could end up destroyed with no crash-time warning at
+// all: the truncate lands, then the process dies before the rewrite.
+typedef int (*fn_CTotalObjMgr_GetRealPlayer)(void);
+static fn_CTotalObjMgr_GetRealPlayer CTotalObjMgr_GetRealPlayer_real = NULL;
+typedef void (*fn_CSaveMgr_Save)(void *this_ptr);
+static so_hook CSaveMgr_Save_hook;
+
+static void CSaveMgr_Save_patched(void *this_ptr) {
+    int player = CTotalObjMgr_GetRealPlayer_real ? CTotalObjMgr_GetRealPlayer_real() : 0;
+    if (!player) {
+        l_warn("[Patch] CSaveMgr::Save: CTotalObjMgr::GetRealPlayer() is NULL, skipping this "
+               "autosave instead of crashing (player object not attached yet).");
+        return;
+    }
+
+    kuKernelCpuUnrestrictedMemcpy((void *)CSaveMgr_Save_hook.addr,
+                                  CSaveMgr_Save_hook.orig_instr,
+                                  sizeof(CSaveMgr_Save_hook.orig_instr));
+    kuKernelFlushCaches((void *)CSaveMgr_Save_hook.addr,
+                        sizeof(CSaveMgr_Save_hook.orig_instr));
+    ((fn_CSaveMgr_Save)CSaveMgr_Save_hook.thumb_addr)(this_ptr);
+    kuKernelCpuUnrestrictedMemcpy((void *)CSaveMgr_Save_hook.addr,
+                                  CSaveMgr_Save_hook.patch_instr,
+                                  sizeof(CSaveMgr_Save_hook.patch_instr));
+    kuKernelFlushCaches((void *)CSaveMgr_Save_hook.addr,
+                        sizeof(CSaveMgr_Save_hook.patch_instr));
+}
+
 void so_patch(void) {
     static int patches_applied = 0;
     if (patches_applied) {
@@ -240,4 +457,37 @@ void so_patch(void) {
     // for the crash-dump/log evidence and root-cause trace.
     ReadPtr_hook = hook_thumb(so_mod.text_base + 0x74714 + 1, (uintptr_t)CGsEncryptFile_ReadPtr_patched);
     l_info("[Patch] Hooked CGsEncryptFile::ReadPtr to prevent Data Abort on Load Game when the save buffer is NULL.");
+
+    // 7. Hook CUIMenuStatus::PointerRelease at offset 0xe8608:
+    // prevent Data Abort when sub-objects (this+0xe0..0xf0) are NULL during
+    // a load-game UI transition.  See the detailed rationale in the comment
+    // block above the patched function.
+    CUIMenuStatus_PR_hook = hook_thumb(so_mod.text_base + 0xe8608 + 1,
+                                       (uintptr_t)CUIMenuStatus_PR_patched);
+    l_info("[Patch] Hooked CUIMenuStatus::PointerRelease to prevent Data Abort on NULL sub-objects.");
+
+    // 8. Hook CUISubMenuReinForced::PointerRelease at offset 0xfcb78:
+    // prevent Data Abort when sub-objects (this+0xd8 or this+0x44) are NULL.
+    // See the detailed rationale in the comment block above the patched function.
+    CUISubMenuReinForced_PR_hook = hook_thumb(so_mod.text_base + 0xfcb78 + 1,
+                                              (uintptr_t)CUISubMenuReinForced_PR_patched);
+    l_info("[Patch] Hooked CUISubMenuReinForced::PointerRelease to prevent Data Abort on NULL sub-objects.");
+
+    // 9. Hook CCharObject::ClearMsgState at offset 0x9746c:
+    // prevent the Data Abort reproduced on-console when loading a save game
+    // (CMapMgr::InitHero calls this on the hero object before its message
+    // sub-objects at this+0x5c/0x64/0x74 have been (re)constructed). See the
+    // detailed rationale in the comment block above the patched function.
+    CCharObject_ClearMsgState_hook = hook_thumb(so_mod.text_base + 0x9746c + 1,
+                                                (uintptr_t)CCharObject_ClearMsgState_patched);
+    l_info("[Patch] Hooked CCharObject::ClearMsgState to prevent Data Abort on Load Game (NULL message sub-objects).");
+
+    // 10. Hook CSaveMgr::Save at offset 0xab1e4:
+    // prevent Data Abort when CTotalObjMgr::GetRealPlayer() is NULL at the
+    // moment a map transition (CMapMgr::ChangeField) fires an autosave. See
+    // the detailed rationale in the comment block above the patched function.
+    CTotalObjMgr_GetRealPlayer_real = (fn_CTotalObjMgr_GetRealPlayer)(so_mod.text_base + 0xd26f0 + 1);
+    CSaveMgr_Save_hook = hook_thumb(so_mod.text_base + 0xab1e4 + 1,
+                                    (uintptr_t)CSaveMgr_Save_patched);
+    l_info("[Patch] Hooked CSaveMgr::Save to prevent Data Abort on autosave when the player object isn't attached yet.");
 }

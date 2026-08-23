@@ -251,6 +251,19 @@ int main() {
     l_info("Initializing OpenGL (%dx%d)...", SCREEN_W, SCREEN_H);
     gl_init(SCREEN_W, SCREEN_H);
 
+    // Pin the main thread (render + game logic, single NativeRender() tick
+    // per loop iteration) to its own core so the scheduler never migrates it
+    // between cores while the audio mixer (audio.c, see audio_init) runs
+    // fixed on a different one. The 3 user cores available are
+    // SCE_KERNEL_CPU_MASK_USER_0/1/2 (the 4th is reserved by the system).
+    // Unconditional, no build flag gate -- same criterion as the CPU/GPU/bus
+    // clock boost above, not a risky experiment. Technique validated on real
+    // hardware in the sibling Zenonia 4 port (same Gamevil Nexus2/GxPZx
+    // engine family).
+    int main_thread_id = sceKernelGetThreadId();
+    int affinity_res = sceKernelChangeThreadCpuAffinityMask(main_thread_id, SCE_KERNEL_CPU_MASK_USER_0);
+    l_info("[PERF] CPU affinity: main thread (0x%08x) -> core 0 (res=0x%08x)", main_thread_id, affinity_res);
+
     // Audio initialization
     l_info("Initializing audio subsystem...");
     audio_init();

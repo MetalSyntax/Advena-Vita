@@ -14,7 +14,7 @@ include("${VITASDK}/share/vita.cmake" REQUIRED)
 set(VITA_APP_NAME "Advena")
 set(VITA_TITLEID "ADVENA001")
 set(VITA_VPKNAME "advena")
-set(VITA_VERSION "01.00")
+set(VITA_VERSION "01.01")
 set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
 
 # Optional: used for "send" and "dump" targets
@@ -52,18 +52,56 @@ if (DUMP_COMPILED_SHADERS)
   endif()
 endif()
 
-# Unique debug definition for loader's logging to not interfere with anything
+# Build configuration & Debug options
+if (NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build (Debug, Release, RelWithDebInfo, MinSizeRel)" FORCE)
+endif()
+
+option(DEBUG_SOLOADER "Enable soloader debug logging" OFF)
+option(DEBUG_OPENGL "Enable OpenGL / shader debug logging" OFF)
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(DEBUG_SOLOADER ON CACHE BOOL "Enable soloader debug logging" FORCE)
+endif()
+
+if (DEBUG_SOLOADER)
   add_definitions(-DDEBUG_SOLOADER)
-  # Uncomment this for verbose FalsoJNI logging:
-  #add_definitions(-DFALSOJNI_DEBUGLEVEL=0)
+endif()
+
+if (DEBUG_OPENGL)
+  add_definitions(-DDEBUG_OPENGL)
+endif()
+
+if (DEFINED FALSOJNI_DEBUGLEVEL)
+  if (FALSOJNI_DEBUGLEVEL STREQUAL "ALL" OR FALSOJNI_DEBUGLEVEL STREQUAL "0")
+    add_definitions(-DFALSOJNI_DEBUGLEVEL=0)
+  elseif (FALSOJNI_DEBUGLEVEL STREQUAL "INFO" OR FALSOJNI_DEBUGLEVEL STREQUAL "1")
+    add_definitions(-DFALSOJNI_DEBUGLEVEL=1)
+  elseif (FALSOJNI_DEBUGLEVEL STREQUAL "WARN" OR FALSOJNI_DEBUGLEVEL STREQUAL "2")
+    add_definitions(-DFALSOJNI_DEBUGLEVEL=2)
+  elseif (FALSOJNI_DEBUGLEVEL STREQUAL "ERROR" OR FALSOJNI_DEBUGLEVEL STREQUAL "3")
+    add_definitions(-DFALSOJNI_DEBUGLEVEL=3)
+  elseif (FALSOJNI_DEBUGLEVEL STREQUAL "NO" OR FALSOJNI_DEBUGLEVEL STREQUAL "4")
+    add_definitions(-DFALSOJNI_DEBUGLEVEL=4)
+  else()
+    add_definitions(-DFALSOJNI_DEBUGLEVEL=${FALSOJNI_DEBUGLEVEL})
+  endif()
 endif()
 
 # makes sincos, sincosf, etc. visible
 add_definitions(-D_GNU_SOURCE -D__POSIX_VISIBLE=999999)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,-q -O3 -g -ffast-math -mfloat-abi=softfp -Wno-deprecated")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,-q -ffast-math -mfloat-abi=softfp -Wno-deprecated")
+set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
+set(CMAKE_C_FLAGS_DEBUG "-O2 -g")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
+set(CMAKE_C_FLAGS_MINSIZEREL "-Os -DNDEBUG")
+
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=gnu++20 -Wno-write-strings -Wno-psabi")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL}")
 
 add_executable(${CMAKE_PROJECT_NAME}
                source/main.c

@@ -8,20 +8,16 @@ Advena está marcado explícitamente en el propio script/comentario.
 
 ## Build y despliegue
 
-- **`build/build_and_install.sh`** — build completo vía symlink sin espacios (workaround del bug de
-  `vita-pack-vpk` con rutas que contienen espacios) + instalación. Asume `project(advena)` en
-  `CMakeLists.txt` (VPK/ejecutable `advena`); si el proyecto agrega flags de build experimentales,
-  agregar su descripción corta en `flag_desc()`.
-- **`manage_vita.py`** — herramienta de despliegue y debug por FTP (VitaShell): opción 1 escanea
-  `BUILD_DIR` (default `build/`) y deja elegir entre TODOS los `.vpk` encontrados (útil si el proyecto
-  genera varias variantes de build, ver `build.sh`) en vez de subir un archivo fijo; también descarga el
-  log más reciente de `ux0:data/advena/logs/`. `VITA_IP`, `VITA_TITLEID` (`ADVENA001`) y los paths
-  `ux0:data/advena/...` ya están seteados al inicio del archivo -- revisar si `VITA_IP` sigue apuntando
-  a la Vita correcta.
-- **`build/deploy_and_launch_vita3k.sh`** — para pruebas en el emulador Vita3K (macOS): copia el
-  `eboot.bin` recién compilado directo al directorio de la app instalada (sin reinstalar el `.vpk`
-  completo) y relanza el emulador. Requiere `/tmp/advena-src` y `/tmp/advena-build` ya configurados
-  (ver comentario de cabecera del script).
+- **`build.sh`** (en la raíz) — script principal de compilación multi-configuración (`./build.sh [preset] [flags_cmake...]`).
+  Soporta presets preconfigurados (`release`, `debug`, `verbose`, `relwithdebinfo`, `cg`, `glsl_dump`, `minsizerel`) y
+  genera automáticamente binarios nombrados por variante (`advena_release.vpk`, `advena_debug.vpk`, `advena.vpk`, etc.)
+  junto con sus respectivos archivos `.elf` de símbolos para análisis de crash dumps.
+- **`build/build_and_install.sh`** — asistente interactivo guiado por pasos:
+  1. Pregunta el **destino de ejecución** (`Vita3K`, `PS Vita física` vía FTP, o `Solo Compilar`).
+  2. Pregunta el **tipo de compilación** (`Debug`, `Release`, `Debug Verbose`, `RelWithDebInfo`, `Shaders CG`, `Shaders GLSL+Dump`, `MinSizeRel` o `Personalizado`).
+  3. Ejecuta la compilación con `build.sh` y despliega automáticamente según las opciones elegidas (hot-swap de `eboot.bin`, instalación completa de VPK o subida por FTP).
+- **`manage_vita.py`** — herramienta integral con interfaz de consola interactiva (navegación por flechas) y soporte de argumentos CLI (`--compile`, `--vita3k`, `--upload-eboot`, `--upload-vpk`, `--download-dump`, etc.).
+- **`build/deploy_and_launch_vita3k.sh`** — despliegue rápido y ejecución en Vita3K (macOS): pregunta interactivamente el tipo de build deseado si no se especifica por línea de comandos, copia `eboot.bin` + fuentes al directorio de la app y relanza el emulador.
 - **`misc/get_dump.sh`** — descarga el `.psp2dmp` (core dump) más reciente de la consola por FTP.
   Uso: `./get_dump.sh <IP-de-la-vita>`.
 

@@ -69,3 +69,5 @@ __pycache__/
 *~
 *.jpg
 *.webp
+.aider*
+screen*.png
