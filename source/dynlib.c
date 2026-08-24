@@ -43,6 +43,19 @@
 #include <libc_bridge/libc_bridge.h>
 #endif
 
+// Bug 16 (PORTING_PLAN.md) diagnostic instrumentation: resolve these 3
+// imports to counting wrappers instead of the real vitaGL functions when
+// enabled. See glutil.c for the counters/report.
+#ifdef INSTRUMENT_GL_CALLS
+#define GL_DRAW_ARRAYS_IMPL   glDrawArrays_soloader
+#define GL_DRAW_ELEMENTS_IMPL glDrawElements_soloader
+#define GL_BIND_TEXTURE_IMPL  glBindTexture_soloader
+#else
+#define GL_DRAW_ARRAYS_IMPL   glDrawArrays
+#define GL_DRAW_ELEMENTS_IMPL glDrawElements
+#define GL_BIND_TEXTURE_IMPL  glBindTexture
+#endif
+
 #include "reimpl/errno.h"
 #include "reimpl/io.h"
 #include "reimpl/log.h"
@@ -512,7 +525,7 @@ so_default_dynlib default_dynlib[] = {
         { "glBindFramebufferOES", (uintptr_t)&glBindFramebuffer },
         { "glBindRenderbuffer", (uintptr_t)&glBindRenderbuffer },
         { "glBindRenderbufferOES", (uintptr_t)&glBindRenderbuffer },
-        { "glBindTexture", (uintptr_t)&glBindTexture },
+        { "glBindTexture", (uintptr_t)&GL_BIND_TEXTURE_IMPL },
         { "glBlendColor", (uintptr_t)&ret0 },
         { "glBlendEquation", (uintptr_t)&glBlendEquation },
         { "glBlendEquationOES", (uintptr_t)&glBlendEquation },
@@ -564,8 +577,8 @@ so_default_dynlib default_dynlib[] = {
         { "glDisable", (uintptr_t)&glDisable },
         { "glDisableClientState", (uintptr_t)&glDisableClientState },
         { "glDisableVertexAttribArray", (uintptr_t)&glDisableVertexAttribArray },
-        { "glDrawArrays", (uintptr_t)&glDrawArrays },
-        { "glDrawElements", (uintptr_t)&glDrawElements },
+        { "glDrawArrays", (uintptr_t)&GL_DRAW_ARRAYS_IMPL },
+        { "glDrawElements", (uintptr_t)&GL_DRAW_ELEMENTS_IMPL },
         { "glDrawTexfOES", (uintptr_t)&ret0 },
         { "glDrawTexfvOES", (uintptr_t)&ret0 },
         { "glDrawTexiOES", (uintptr_t)&ret0 },

@@ -32,6 +32,18 @@ void glCompileShader_soloader(GLuint shader);
 void glShaderSource_soloader(GLuint shader, GLsizei count,
                              const GLchar **string, const GLint *_length);
 
+#ifdef INSTRUMENT_GL_CALLS
+// Bug 16 (PORTING_PLAN.md) diagnostic instrumentation: count draw calls and
+// texture binds/switches per frame, the GL-pipeline equivalent of Zenonia
+// 4's PutCompressImg hot-path probe. Zero-cost when INSTRUMENT_GL_CALLS is
+// not defined (dynlib.c resolves the .so's imports straight to the real
+// vitaGL functions instead of these wrappers).
+void glDrawArrays_soloader(GLenum mode, GLint first, GLsizei count);
+void glDrawElements_soloader(GLenum mode, GLsizei count, GLenum type, const void *indices);
+void glBindTexture_soloader(GLenum target, GLuint texture);
+void gl_instrument_frame_end();
+#endif
+
 #ifdef __cplusplus
 };
 #endif

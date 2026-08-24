@@ -19,7 +19,12 @@
 #define SND_DIR3 "ux0:data/advena/assets/sound"
 
 #define AUDIO_RATE 44100
-#define AUDIO_GRAIN 512
+// 512 -> 1024: halves the number of sceAudioOutOutput()/mixer-loop
+// iterations per second (86 -> 43 Hz), trading roughly 11.6ms of extra
+// output latency (grain/rate) for fewer thread wakeups/interrupts on the
+// dedicated audio core (SCE_KERNEL_CPU_MASK_USER_1, see audio_init below).
+// Not perceptible for this game's BGM/SFX use case.
+#define AUDIO_GRAIN 1024
 
 #define VOICE_BGM    0
 #define VOICE_STREAM 1

@@ -14,6 +14,7 @@
 #include "utils/logger.h"
 
 #include <stdio.h>
+#include <stdint.h>
 #include <malloc.h>
 #include <string.h>
 #include <psp2/kernel/sysmem.h>
@@ -41,14 +42,62 @@ void gl_init() {
     // real hardware for the same engine (com.gamevil.nexus2.Natives) in the
     // Zenonia 2/3 Vita ports and in Prince of Persia. Advena was the only
     // port in this family initializing with SCE_GXM_MULTISAMPLE_4X instead
-    // of _NONE.
+    // of _NONE. Re-confirmed "sin cambios" during the Bug 16 perf pass
+    // (PORTING_PLAN.md) -- left untouched on purpose, do not enable triple
+    // buffering here without new hardware evidence for this specific port.
     vglUseTripleBuffering(GL_FALSE);
-    vglInitExtended(0, 960, 544, 6 * 1024 * 1024, SCE_GXM_MULTISAMPLE_NONE);
+    // Legacy immediate-mode pool bumped 6MB -> 8MB: this port issues real
+    // glDrawArrays/glDrawElements calls directly from the .so (client-side
+    // vertex arrays, not VBOs -- see PORTING_PLAN.md Bug 16), so headroom
+    // here avoids vitaGL falling back to on-demand pool growth/reclaim mid-
+    // frame during busy combat scenes. Does not touch the MSAA/triple-
+    // buffering config above.
+    vglInitExtended(0, 960, 544, 8 * 1024 * 1024, SCE_GXM_MULTISAMPLE_NONE);
 }
 
 void gl_swap() {
     vglSwapBuffers(GL_FALSE);
 }
+
+#ifdef INSTRUMENT_GL_CALLS
+// Bug 16 (PORTING_PLAN.md) diagnostic: Advena renders via real GL calls
+// (unlike Zenonia 4's software rasterizer), so the equivalent of that port's
+// PutCompressImg hot-path probe is counting draw calls and texture bind/
+// switch volume per frame. Report via game_log() (unconditional -- l_info()
+// compiles to nothing outside DEBUG_SOLOADER builds, which would make this
+// build flag silently produce no output).
+static uint32_t instr_draw_calls = 0;
+static uint32_t instr_bind_calls = 0;
+static uint32_t instr_texture_switches = 0;
+static GLuint instr_last_texture = (GLuint) -1;
+
+void glDrawArrays_soloader(GLenum mode, GLint first, GLsizei count) {
+    instr_draw_calls++;
+    glDrawArrays(mode, first, count);
+}
+
+void glDrawElements_soloader(GLenum mode, GLsizei count, GLenum type, const void *indices) {
+    instr_draw_calls++;
+    glDrawElements(mode, count, type, indices);
+}
+
+void glBindTexture_soloader(GLenum target, GLuint texture) {
+    instr_bind_calls++;
+    if (texture != instr_last_texture) {
+        instr_texture_switches++;
+        instr_last_texture = texture;
+    }
+    glBindTexture(target, texture);
+}
+
+void gl_instrument_frame_end() {
+    game_log("[PERF] GL/frame: draws=%u binds=%u tex_switches=%u\n",
+             instr_draw_calls, instr_bind_calls, instr_texture_switches);
+    instr_draw_calls = 0;
+    instr_bind_calls = 0;
+    instr_texture_switches = 0;
+}
+#endif
 
 void glShaderSource_soloader(GLuint shader, GLsizei count,
                              const GLchar **string, const GLint *_length) {

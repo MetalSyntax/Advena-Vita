@@ -60,6 +60,15 @@ endif()
 option(DEBUG_SOLOADER "Enable soloader debug logging" OFF)
 option(DEBUG_OPENGL "Enable OpenGL / shader debug logging" OFF)
 
+# Bug 16 (PORTING_PLAN.md) perf diagnostic: count glDrawArrays/glDrawElements/
+# glBindTexture calls per frame to find the real GL-pipeline hot path (the
+# equivalent of Zenonia 4's PutCompressImg call-count probe). Off by default:
+# adds a branch + counter increment per draw/bind call.
+option(INSTRUMENT_GL_CALLS "Log per-frame GL draw-call/texture-bind counts" OFF)
+if (INSTRUMENT_GL_CALLS)
+  add_definitions(-DINSTRUMENT_GL_CALLS)
+endif()
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(DEBUG_SOLOADER ON CACHE BOOL "Enable soloader debug logging" FORCE)
 endif()
@@ -91,7 +100,13 @@ endif()
 # makes sincos, sincosf, etc. visible
 add_definitions(-D_GNU_SOURCE -D__POSIX_VISIBLE=999999)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,-q -ffast-math -mfloat-abi=softfp -Wno-deprecated")
+# -mcpu=cortex-a9 -mfpu=neon: the vita.toolchain.cmake toolchain file does
+# NOT set these itself (only CMAKE_SYSTEM_PROCESSOR "armv7-a"), so without
+# them the compiler falls back to a generic ARMv7 target and won't emit NEON
+# vector instructions for this port's own C/C++ code (the prebuilt vitasdk
+# libs it links against, e.g. mathneon/vitaGL, are already built cortex-a9/
+# neon, so this just brings our own object files in line with them).
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,-q -ffast-math -mfloat-abi=softfp -Wno-deprecated -mcpu=cortex-a9 -mfpu=neon")
 set(CMAKE_C_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(CMAKE_C_FLAGS_DEBUG "-O2 -g")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3 -g -DNDEBUG")
@@ -102,6 +117,18 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL}")
+
+# NOTE on -flto: deliberately NOT enabled. Confirmed by an actual release
+# build attempt that it breaks the link: dynlib.c declares C++ runtime
+# symbols used by the .so (operator new, __cxa_throw_bad_alloc, etc.) as
+# plain `extern void *` so their addresses can be resolved generically into
+# the soloader's import table (same pattern as every other symbol in that
+# file's dynlib_hooks[] table). Under LTO, GCC cross-checks those
+# declarations against libstdc++'s real function prototypes for the same
+# symbols pulled in elsewhere and fails with "redeclared as function"
+# (lto1: fatal error: errors during merging of translation units). Fixing
+# this would mean reworking dynlib.c's symbol table pattern for every
+# conflicting libstdc++ symbol -- out of scope for a perf tweak.
 
 add_executable(${CMAKE_PROJECT_NAME}
                source/main.c

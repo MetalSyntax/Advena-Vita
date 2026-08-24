@@ -540,7 +540,21 @@ int main() {
         }
 
         gl_swap();
-        sceDisplayWaitVblankStartMulti(2); // 30 FPS smooth pacing
+        // No explicit sceDisplayWaitVblankStartMulti() here: vglSwapBuffers()
+        // (in gl_swap, glutil.c) already performs the display flip/vblank
+        // sync internally. A second, unconditional 2-vblank wait stacked on
+        // top of that was capping every frame at ~33.3ms (30 FPS) regardless
+        // of how fast the frame actually rendered -- e.g. a 17ms frame still
+        // paid the full 33.3ms wait, landing at 20 FPS instead of the ~50 FPS
+        // it could have sustained. Removing it lets light scenes (menus,
+        // simple maps) run up to the panel's native 60Hz; it does not change
+        // heavy combat scenes that are already GL-bound below 30 FPS (see
+        // PORTING_PLAN.md Bug 16 -- that bottleneck is draw-call/state-change
+        // volume, unrelated to this pacing wait, and is still pending the
+        // glDrawArrays/glDrawElements/glBindTexture instrumentation below).
+#ifdef INSTRUMENT_GL_CALLS
+        gl_instrument_frame_end();
+#endif
     }
 
     sceKernelExitDeleteThread(0);
