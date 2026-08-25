@@ -69,6 +69,17 @@ if (INSTRUMENT_GL_CALLS)
   add_definitions(-DINSTRUMENT_GL_CALLS)
 endif()
 
+# Bug 16 (PORTING_PLAN.md) 4th perf pass: real hardware GL instrumentation
+# showed draws=1/binds=1 per frame -- the .so composites by software into a
+# 480x320 buffer and only touches GL to upload/blit that single buffer. This
+# flag adds a non-destructive call-count hook (always runs the original) on
+# DrawOP_ENLARGE_Compress_16_Ex, the software rasterizer's compressed-sprite
+# blit routine, to confirm it's the real per-enemy hot path. Off by default.
+option(INSTRUMENT_BLIT_CALLS "Log per-frame calls to the .so's sprite blit routine" OFF)
+if (INSTRUMENT_BLIT_CALLS)
+  add_definitions(-DINSTRUMENT_BLIT_CALLS)
+endif()
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(DEBUG_SOLOADER ON CACHE BOOL "Enable soloader debug logging" FORCE)
 endif()

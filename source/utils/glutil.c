@@ -12,6 +12,7 @@
 #include "utils/utils.h"
 #include "utils/dialog.h"
 #include "utils/logger.h"
+#include "utils/init.h"
 
 #include <stdio.h>
 #include <stdint.h>
@@ -46,6 +47,17 @@ void gl_init() {
     // (PORTING_PLAN.md) -- left untouched on purpose, do not enable triple
     // buffering here without new hardware evidence for this specific port.
     vglUseTripleBuffering(GL_FALSE);
+    // Bug 16 (PORTING_PLAN.md), 3rd perf pass: this port's .so uploads real
+    // client-side vertex arrays (glVertexPointer/glTexCoordPointer + real
+    // glDrawArrays/glDrawElements) every frame instead of using VBOs -- with
+    // 10+ enemies attacking at once that's a lot of small CPU writes into
+    // vitaGL's internal pools each frame. vitaGL's default pools are
+    // uncached memory (slow CPU writes, fast GPU reads); switching to cached
+    // memory makes those per-draw CPU writes fast at the cost of vitaGL
+    // having to flush the cache before the GPU reads it, which vitaGL does
+    // internally -- this is the standard fix for CPU-write-bound immediate-
+    // mode ports like this one. Must be called before vglInit*.
+    vglUseCachedMem(GL_TRUE);
     // Legacy immediate-mode pool bumped 6MB -> 8MB: this port issues real
     // glDrawArrays/glDrawElements calls directly from the .so (client-side
     // vertex arrays, not VBOs -- see PORTING_PLAN.md Bug 16), so headroom
@@ -70,6 +82,17 @@ static uint32_t instr_draw_calls = 0;
 static uint32_t instr_bind_calls = 0;
 static uint32_t instr_texture_switches = 0;
 static GLuint instr_last_texture = (GLuint) -1;
+// 4th perf pass (PORTING_PLAN.md Bug 16): draws=1/binds=1 per frame (measured
+// on real hardware, whole play session incl. combat) rules out per-sprite GL
+// draw calls as the bottleneck -- the .so blits a single full-frame quad per
+// frame, meaning it composites by software first (same architecture family
+// as Zenonia 4's CGxPZxZero::Blt). This tracks whether that single quad's
+// texture is being re-uploaded (glTexImage2D) or updated (glTexSubImage2D)
+// every frame, and how many pixels that costs -- the likely real hot path.
+static uint32_t instr_teximage_calls = 0;
+static uint32_t instr_texsubimage_calls = 0;
+static uint64_t instr_teximage_pixels = 0;
+static uint64_t instr_texsubimage_pixels = 0;
 
 void glDrawArrays_soloader(GLenum mode, GLint first, GLsizei count) {
     instr_draw_calls++;
@@ -90,12 +113,45 @@ void glBindTexture_soloader(GLenum target, GLuint texture) {
     glBindTexture(target, texture);
 }
 
+void glTexImage2D_soloader(GLenum target, GLint level, GLint internalformat,
+                            GLsizei width, GLsizei height, GLint border,
+                            GLenum format, GLenum type, const void *pixels) {
+    instr_teximage_calls++;
+    instr_teximage_pixels += (uint64_t) width * (uint64_t) height;
+    glTexImage2D(target, level, internalformat, width, height, border, format, type, pixels);
+}
+
+void glTexSubImage2D_soloader(GLenum target, GLint level, GLint xoffset, GLint yoffset,
+                               GLsizei width, GLsizei height, GLenum format,
+                               GLenum type, const void *pixels) {
+    instr_texsubimage_calls++;
+    instr_texsubimage_pixels += (uint64_t) width * (uint64_t) height;
+    glTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, pixels);
+}
+
 void gl_instrument_frame_end() {
-    game_log("[PERF] GL/frame: draws=%u binds=%u tex_switches=%u\n",
-             instr_draw_calls, instr_bind_calls, instr_texture_switches);
+#ifdef INSTRUMENT_BLIT_CALLS
+    uint32_t blits = patch_get_and_reset_blit_calls();
+    char blit_hist[256];
+    patch_format_and_reset_blit_histogram(blit_hist, sizeof(blit_hist));
+    game_log("[PERF] GL/frame: draws=%u binds=%u tex_switches=%u teximg=%u teximg_px=%llu texsubimg=%u texsubimg_px=%llu blits=%u ops=%s\n",
+             instr_draw_calls, instr_bind_calls, instr_texture_switches,
+             instr_teximage_calls, (unsigned long long) instr_teximage_pixels,
+             instr_texsubimage_calls, (unsigned long long) instr_texsubimage_pixels,
+             blits, blit_hist);
+#else
+    game_log("[PERF] GL/frame: draws=%u binds=%u tex_switches=%u teximg=%u teximg_px=%llu texsubimg=%u texsubimg_px=%llu\n",
+             instr_draw_calls, instr_bind_calls, instr_texture_switches,
+             instr_teximage_calls, (unsigned long long) instr_teximage_pixels,
+             instr_texsubimage_calls, (unsigned long long) instr_texsubimage_pixels);
+#endif
     instr_draw_calls = 0;
     instr_bind_calls = 0;
     instr_texture_switches = 0;
+    instr_teximage_calls = 0;
+    instr_texsubimage_calls = 0;
+    instr_teximage_pixels = 0;
+    instr_texsubimage_pixels = 0;
 }
 #endif
 

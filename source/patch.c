@@ -14,6 +14,7 @@
 #include <kubridge.h>
 #include <so_util/so_util.h>
 #include <string.h>
+#include <stdio.h>
 #include "utils/logger.h"
 
 extern so_module so_mod;
@@ -399,6 +400,117 @@ static void CSaveMgr_Save_patched(void *this_ptr) {
                         sizeof(CSaveMgr_Save_hook.patch_instr));
 }
 
+// ---------------------------------------------------------------------------
+// Perf diagnostic (Bug 16, PORTING_PLAN.md, 4th pass): call-count probe on
+// PutCompressImg (SO offset 0x140050)
+// ---------------------------------------------------------------------------
+// Real GL instrumentation (glutil.c, INSTRUMENT_GL_CALLS) showed draws=1/
+// binds=1 per frame throughout an entire play session including combat --
+// the .so is NOT issuing per-sprite GL draw calls, it composites the scene
+// into a 480x320 CPU-side buffer and uploads/blits that single buffer via
+// GL once per frame (glTexSubImage2D of exactly 153600 = 480*320 px every
+// frame). First attempt at this probe hooked DrawOP_ENLARGE_Compress_16_Ex
+// (.so+0x136034, one of ~20 DrawOP_<BLEND>_<Clipping>Compress_16_<Fmt>
+// variants exported by this .so -- COPY/ADD/BLEND16/DARKEN/ENLARGE/FX x
+// Compress_16_16/_Ex/_Alpha/_Auto x optional Clipping) and measured 0 calls
+// across an entire session incl. combat: real gameplay sprites use a
+// DIFFERENT variant than ENLARGE (Ex), so that specific one was simply the
+// wrong pick. `nm -D` on the real .so shows this .so exports the exact same
+// PutCompressImg(int,int,int,int,unsigned char*,unsigned short*,enumDrawOP,
+// int,long) dispatcher function Zenonia 4 (same GxPZx engine family) used
+// for its own proven hot-path probe -- it's the single common entry point
+// that picks the right DrawOP_* variant per call
+// (decompiled at out_ghidra.c:258914-258916), so hooking THIS instead
+// captures every sprite blit regardless of which variant gets used. This is
+// a pure call-count hook: it always runs the original implementation
+// untouched and only increments a counter, so it cannot change rendering
+// behavior -- purely diagnostic, same as the INSTRUMENT_GL_CALLS wrappers
+// in glutil.c.
+#ifdef INSTRUMENT_BLIT_CALLS
+typedef void (*fn_PutCompressImg)(int, int, int, int, unsigned char *, unsigned short *,
+                                   int /* enumDrawOP */, int, long);
+static so_hook PutCompressImg_hook;
+static uint32_t instr_blit_calls = 0;
+
+// enumDrawOP -> operation name, straight from CMvGraphics::InitialBlend()
+// (out_ghidra.c:214383-214425), which registers each op's concrete
+// DrawOP_<NAME>_Compress_16_Auto / DrawOP_<NAME>_ClippingCompress_16_Auto
+// pair against this exact numeric key via SetZeroBlendFunc(key, ...). This
+// is also why the FIRST probe attempt (DrawOP_ENLARGE_Compress_16_Ex, the
+// "_Ex" suffixed variant) measured 0 calls: the dispatch table only ever
+// wires up the "_Auto" suffixed variants, never "_Ex" -- "_Ex" looks to be
+// dead code from this call path (still reachable from elsewhere, per Bug 5
+// in PORTING_PLAN.md, just not from PutCompressImg).
+#define BLIT_OP_HIST_SIZE 32
+static uint32_t instr_blit_by_op[BLIT_OP_HIST_SIZE] = {0};
+
+static const char *blit_op_name(int op) {
+    switch (op) {
+        case 0x0: return "COPY";
+        case 0x1: return "BLEND16";
+        case 0x2: return "ADD";
+        case 0x4: return "VOID";
+        case 0x5: return "SHADOW";
+        case 0x6: return "LIGHTEN";
+        case 0x7: return "DARKEN";
+        case 0x9: return "NEGATIVE";
+        case 0xa: return "GRAY";
+        case 0xb: return "RGB";
+        case 0xc: return "RGBHALF";
+        case 0xd: return "RGBADD";
+        case 0xe: return "RGBMULTI";
+        case 0xf: return "OUTLINE";
+        case 0x10: return "ENLARGE";
+        case 0x13: return "FX";
+        default: return "?";
+    }
+}
+
+static void PutCompressImg_counted(int p1, int p2, int p3, int p4, unsigned char *p5,
+                                    unsigned short *p6, int p7, int p8, long p9) {
+    instr_blit_calls++;
+    if (p7 >= 0 && p7 < BLIT_OP_HIST_SIZE) {
+        instr_blit_by_op[p7]++;
+    }
+
+    kuKernelCpuUnrestrictedMemcpy((void *)PutCompressImg_hook.addr,
+                                  PutCompressImg_hook.orig_instr,
+                                  sizeof(PutCompressImg_hook.orig_instr));
+    kuKernelFlushCaches((void *)PutCompressImg_hook.addr,
+                        sizeof(PutCompressImg_hook.orig_instr));
+    ((fn_PutCompressImg)PutCompressImg_hook.thumb_addr)(p1, p2, p3, p4, p5, p6, p7, p8, p9);
+    kuKernelCpuUnrestrictedMemcpy((void *)PutCompressImg_hook.addr,
+                                  PutCompressImg_hook.patch_instr,
+                                  sizeof(PutCompressImg_hook.patch_instr));
+    kuKernelFlushCaches((void *)PutCompressImg_hook.addr,
+                        sizeof(PutCompressImg_hook.patch_instr));
+}
+
+uint32_t patch_get_and_reset_blit_calls() {
+    uint32_t v = instr_blit_calls;
+    instr_blit_calls = 0;
+    return v;
+}
+
+// Writes a compact "NAME:count,NAME:count,..." breakdown of this frame's
+// PutCompressImg calls by enumDrawOP into buf (only non-zero buckets), then
+// resets the histogram for the next frame.
+void patch_format_and_reset_blit_histogram(char *buf, int buflen) {
+    int off = 0;
+    buf[0] = '\0';
+    for (int i = 0; i < BLIT_OP_HIST_SIZE; i++) {
+        if (instr_blit_by_op[i] > 0 && off < buflen - 1) {
+            int written = snprintf(buf + off, buflen - off, "%s%s:%u",
+                                   (off > 0) ? "," : "", blit_op_name(i), instr_blit_by_op[i]);
+            if (written > 0) {
+                off += written;
+            }
+        }
+        instr_blit_by_op[i] = 0;
+    }
+}
+#endif
+
 void so_patch(void) {
     static int patches_applied = 0;
     if (patches_applied) {
@@ -490,4 +602,15 @@ void so_patch(void) {
     CSaveMgr_Save_hook = hook_thumb(so_mod.text_base + 0xab1e4 + 1,
                                     (uintptr_t)CSaveMgr_Save_patched);
     l_info("[Patch] Hooked CSaveMgr::Save to prevent Data Abort on autosave when the player object isn't attached yet.");
+
+#ifdef INSTRUMENT_BLIT_CALLS
+    // 11. Hook PutCompressImg at offset 0x140050 (diagnostic only, see the
+    // comment block above this function): count calls/frame to the software
+    // rasterizer's common sprite-blit dispatcher, to confirm it's the real
+    // Bug 16 hot path and that it scales with enemy count. Always runs the
+    // untouched original.
+    PutCompressImg_hook = hook_thumb(so_mod.text_base + 0x140050 + 1,
+                                     (uintptr_t)PutCompressImg_counted);
+    l_info("[Patch] Hooked PutCompressImg (diagnostic call-count probe, Bug 16).");
+#endif
 }

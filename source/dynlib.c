@@ -47,13 +47,17 @@
 // imports to counting wrappers instead of the real vitaGL functions when
 // enabled. See glutil.c for the counters/report.
 #ifdef INSTRUMENT_GL_CALLS
-#define GL_DRAW_ARRAYS_IMPL   glDrawArrays_soloader
-#define GL_DRAW_ELEMENTS_IMPL glDrawElements_soloader
-#define GL_BIND_TEXTURE_IMPL  glBindTexture_soloader
+#define GL_DRAW_ARRAYS_IMPL     glDrawArrays_soloader
+#define GL_DRAW_ELEMENTS_IMPL   glDrawElements_soloader
+#define GL_BIND_TEXTURE_IMPL    glBindTexture_soloader
+#define GL_TEX_IMAGE_2D_IMPL    glTexImage2D_soloader
+#define GL_TEX_SUB_IMAGE_2D_IMPL glTexSubImage2D_soloader
 #else
-#define GL_DRAW_ARRAYS_IMPL   glDrawArrays
-#define GL_DRAW_ELEMENTS_IMPL glDrawElements
-#define GL_BIND_TEXTURE_IMPL  glBindTexture
+#define GL_DRAW_ARRAYS_IMPL     glDrawArrays
+#define GL_DRAW_ELEMENTS_IMPL   glDrawElements
+#define GL_BIND_TEXTURE_IMPL    glBindTexture
+#define GL_TEX_IMAGE_2D_IMPL    glTexImage2D
+#define GL_TEX_SUB_IMAGE_2D_IMPL glTexSubImage2D
 #endif
 
 #include "reimpl/errno.h"
@@ -730,14 +734,14 @@ so_default_dynlib default_dynlib[] = {
         { "glTexGenivOES", (uintptr_t)&ret0 },
         { "glTexGenxOES", (uintptr_t)&ret0 },
         { "glTexGenxvOES", (uintptr_t)&ret0 },
-        { "glTexImage2D", (uintptr_t)&glTexImage2D },
+        { "glTexImage2D", (uintptr_t)&GL_TEX_IMAGE_2D_IMPL },
         { "glTexParameterf", (uintptr_t)&glTexParameterf },
         { "glTexParameterfv", (uintptr_t)&ret0 },
         { "glTexParameteri", (uintptr_t)&glTexParameteri },
         { "glTexParameteriv", (uintptr_t)&glTexParameteriv },
         { "glTexParameterx", (uintptr_t)&glTexParameterx },
         { "glTexParameterxv", (uintptr_t)&ret0 },
-        { "glTexSubImage2D", (uintptr_t)&glTexSubImage2D },
+        { "glTexSubImage2D", (uintptr_t)&GL_TEX_SUB_IMAGE_2D_IMPL },
         { "glTranslatef", (uintptr_t)&glTranslatef },
         { "glTranslatex", (uintptr_t)&glTranslatex },
         { "glUniform1f", (uintptr_t)&glUniform1f },

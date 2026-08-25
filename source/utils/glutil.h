@@ -41,6 +41,12 @@ void glShaderSource_soloader(GLuint shader, GLsizei count,
 void glDrawArrays_soloader(GLenum mode, GLint first, GLsizei count);
 void glDrawElements_soloader(GLenum mode, GLsizei count, GLenum type, const void *indices);
 void glBindTexture_soloader(GLenum target, GLuint texture);
+void glTexImage2D_soloader(GLenum target, GLint level, GLint internalformat,
+                            GLsizei width, GLsizei height, GLint border,
+                            GLenum format, GLenum type, const void *pixels);
+void glTexSubImage2D_soloader(GLenum target, GLint level, GLint xoffset, GLint yoffset,
+                               GLsizei width, GLsizei height, GLenum format,
+                               GLenum type, const void *pixels);
 void gl_instrument_frame_end();
 #endif
 
