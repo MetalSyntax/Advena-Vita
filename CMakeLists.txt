@@ -80,6 +80,20 @@ if (INSTRUMENT_BLIT_CALLS)
   add_definitions(-DINSTRUMENT_BLIT_CALLS)
 endif()
 
+# Bug 16 (PORTING_PLAN.md) 5th perf pass: real hardware instrumentation found
+# DrawOP_COPY_Compress_16 (via DrawOP_COPY_Compress_16_Auto) is ~79% of all
+# sprite blits in combat. This flag fully REPLACES that function (not a
+# guard/crash-fix hook -- the original machine code never runs again) with a
+# recompiled equivalent, to fix the original armeabi/Thumb-1 build spilling
+# its opaque-run pixel counter to the stack every iteration instead of
+# keeping it in a register. This is a genuine rendering-behavior change and
+# needs on-console visual verification (no corrupted sprites) before it's
+# trusted -- off by default until confirmed.
+option(OPT_COPY_BLIT_REWRITE "Replace DrawOP_COPY_Compress_16 with a faster equivalent (needs visual verification)" OFF)
+if (OPT_COPY_BLIT_REWRITE)
+  add_definitions(-DOPT_COPY_BLIT_REWRITE)
+endif()
+
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(DEBUG_SOLOADER ON CACHE BOOL "Enable soloader debug logging" FORCE)
 endif()

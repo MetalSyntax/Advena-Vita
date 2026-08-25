@@ -292,6 +292,95 @@ void patch_format_and_reset_blit_histogram(char *buf, int buflen) {
 }
 #endif
 
+// ---------------------------------------------------------------------------
+// Perf fix (Bug 16, PORTING_PLAN.md, 5th pass): full replacement of
+// DrawOP_COPY_Compress_16 (SO offset 0x142588)
+// ---------------------------------------------------------------------------
+// The 4th perf pass identified DrawOP_COPY_Compress_16_Auto (dispatching,
+// for the common case, straight to DrawOP_COPY_Compress_16) as ~79% of all
+// PutCompressImg sprite blits during real combat -- by far the dominant
+// cost. This is a genuine algorithm replacement, NOT a guard/crash-fix
+// hook: unlike every other hook in this file, the patched function NEVER
+// calls the original -- it fully replaces it, so it changes what code
+// actually runs on every opaque sprite pixel in the game. That means it
+// needs on-console visual verification before it's trusted, which is why
+// it's gated behind its own opt-in flag (OPT_COPY_BLIT_REWRITE, default
+// OFF) instead of being always-on like the crash-fix hooks above.
+//
+// Format (reverse-engineered from the real pseudo-C,
+// out_ghidra.c:261348-261434, and cross-checked byte-for-byte against this
+// reimplementation): a per-scanline RLE stream of unsigned char* compressed
+// data, decoded as a run of little-endian uint16 tokens:
+//   - optional 10-byte extended header, present iff the very first int16 at
+//     the start of the stream == -5 (0xFFFB) -- the real token stream then
+//     starts 10 bytes in instead of at the very start.
+//   - 0xFFFF: end of sprite data, stop.
+//   - 0xFFFE: next scanline -- dst += stride (row-advance marker; does NOT
+//     consume any further bytes from the compressed stream).
+//   - high bit set (token & 0x8000): "opaque run" -- token & 0x7FFF is a
+//     pixel count; for each pixel, read one index byte from the compressed
+//     stream and write palette[index] (16-bit RGB565) to the destination.
+//   - otherwise (token < 0x8000): "transparent run" -- skip `token` pixels
+//     in the destination WITHOUT reading from the compressed stream or
+//     writing anything (the transparent pixels already show whatever the
+//     software framebuffer had there).
+//
+// WHY this is the real hot loop and what actually gets fixed here: the
+// live disassembly of the ORIGINAL .so's DrawOP_COPY_Compress_16 (`arm-
+// vita-eabi-objdump -Mforce-thumb`, `.so+0x142588`) shows the compiler that
+// built this game's armeabi/ARMv5TE-targeted .so spilled the opaque-run
+// pixel counter (the decompiled `local_22`) to the STACK and reloaded it
+// via `ldrh`/`strh` on almost every single loop iteration, instead of
+// keeping it in a register -- ~9-10 Thumb-1 instructions per pixel for
+// what should be 3-4. This is NOT something a NEON rewrite fixes: the
+// per-pixel work is a byte-indexed lookup into a 256-entry x 16-bit
+// palette, and ARMv7 NEON has no gather instruction for that (VTBL only
+// covers a 32-byte/32-entry table, 8x too small for a 256-entry palette;
+// building a 256-entry lookup out of chained VTBL passes is realistically
+// no faster than the fix below and adds real correctness risk for an
+// unverified payoff). The actual, low-risk win is just recompiling the
+// SAME algorithm with a modern compiler at -O3 -mcpu=cortex-a9 (this
+// project's existing flags, see CMakeLists.txt) in ARM mode instead of
+// legacy Thumb-1: a sane register allocator keeps the loop counter in a
+// register and uses post-increment addressing, cutting per-pixel work to
+// a handful of instructions with zero algorithm changes.
+#ifdef OPT_COPY_BLIT_REWRITE
+static void DrawOP_COPY_Compress_16_rewrite(unsigned short *dst, unsigned char *src,
+                                             unsigned short *palette, int stride) {
+    unsigned char *p = src;
+    // Extended-header marker: identical semantics to
+    // `*(short *)param_2 == -5` in the decompiled original, but read
+    // byte-wise (matches how the rest of this function reads tokens, and
+    // avoids relying on 2-byte alignment of `src`).
+    if ((short)((unsigned int)src[0] | ((unsigned int)src[1] << 8)) == -5) {
+        p = src + 10;
+    }
+
+    for (;;) {
+        unsigned int token = (unsigned int)p[0] | ((unsigned int)p[1] << 8);
+        if (token == 0xFFFF) {
+            return;
+        }
+        p += 2;
+        if (token == 0xFFFE) {
+            dst += stride;
+        } else if (token & 0x8000) {
+            unsigned int count = token & 0x7FFF;
+            for (unsigned int i = 0; i < count; i++) {
+                *dst++ = palette[*p++];
+            }
+        } else {
+            dst += token;
+        }
+    }
+}
+
+// Unlike every other hook in this file, this one is installed once and left
+// in place permanently -- there's no orig_instr to restore-call-repatch
+// because the original machine code is never run again after this.
+static so_hook DrawOP_COPY_Compress_16_hook;
+#endif
+
 void so_patch(void) {
     static int patches_applied = 0;
     if (patches_applied) {
@@ -379,5 +468,14 @@ void so_patch(void) {
     PutCompressImg_hook = hook_thumb(so_mod.text_base + 0x140050 + 1,
                                      (uintptr_t)PutCompressImg_counted);
     l_info("[Patch] Hooked PutCompressImg (diagnostic call-count probe, Bug 16).");
+#endif
+
+#ifdef OPT_COPY_BLIT_REWRITE
+    // 12. Replace DrawOP_COPY_Compress_16 at offset 0x142588 (perf fix, see
+    // the comment block above this function): the original machine code is
+    // never called again after this -- no restore-call-repatch dance.
+    DrawOP_COPY_Compress_16_hook = hook_thumb(so_mod.text_base + 0x142588 + 1,
+                                              (uintptr_t)DrawOP_COPY_Compress_16_rewrite);
+    l_info("[Patch] Replaced DrawOP_COPY_Compress_16 with a faster equivalent (Bug 16, needs visual verification).");
 #endif
 }
