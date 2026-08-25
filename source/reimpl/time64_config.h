@@ -1,73 +1,64 @@
-/* Debugging
-   TIME_64_DEBUG
-   Define if you want debugging messages
-*/
-/* #define TIME_64_DEBUG */
+/**
+ * @brief Debugging TIME_64_DEBUG Define if you want debugging messages.
+ * @note See `docs/source/reimpl/time64_config.md:1` for detailed design rationale.
+ */
+/**
+ * @brief define TIME_64_DEBUG.
+ * @note See `docs/source/reimpl/time64_config.md:5` for detailed design rationale.
+ */
 
 
-/* INT_64_T
-   A 64 bit integer type to use to store time and others.
-   Must be defined.
-*/
+/**
+ * @brief INT_64_T A 64 bit integer type to use to store time and others.
+ * @note See `docs/source/reimpl/time64_config.md:8` for detailed design rationale.
+ */
 #define INT_64_T                long long
 
 
-/* USE_TM64
-   Should we use a 64 bit safe replacement for tm?  This will
-   let you go past year 2 billion but the struct will be incompatible
-   with tm.  Conversion functions will be provided.
-*/
-/* #define USE_TM64 */
+/**
+ * @brief USE_TM64 Should we use a 64 bit safe replacement for tm.
+ * @note See `docs/source/reimpl/time64_config.md:15` for detailed design rationale.
+ */
+/**
+ * @brief define USE_TM64.
+ * @note See `docs/source/reimpl/time64_config.md:20` for detailed design rationale.
+ */
 
 
-/* Availability of system functions.
-
-   HAS_GMTIME_R
-   Define if your system has gmtime_r()
-
-   HAS_LOCALTIME_R
-   Define if your system has localtime_r()
-
-   HAS_TIMEGM
-   Define if your system has timegm(), a GNU extension.
-*/
+/**
+ * @brief Availability of system functions.
+ * @note See `docs/source/reimpl/time64_config.md:23` for detailed design rationale.
+ */
 #define HAS_GMTIME_R
 #define HAS_LOCALTIME_R
 #define HAS_TIMEGM
 
 
-/* Details of non-standard tm struct elements.
-
-   HAS_TM_TM_GMTOFF
-   True if your tm struct has a "tm_gmtoff" element.
-   A BSD extension.
-
-   HAS_TM_TM_ZONE
-   True if your tm struct has a "tm_zone" element.
-   A BSD extension.
-*/
-//#define HAS_TM_TM_GMTOFF
-//#define HAS_TM_TM_ZONE
+/**
+ * @brief Details of non-standard tm struct elements.
+ * @note See `docs/source/reimpl/time64_config.md:39` for detailed design rationale.
+ */
+/**
+ * @brief define HAS_TM_TM_GMTOFF #define HAS_TM_TM_ZONE.
+ * @note See `docs/source/reimpl/time64_config.md:49` for detailed design rationale.
+ */
 
 
-/* USE_SYSTEM_LOCALTIME
-   USE_SYSTEM_GMTIME
-   Should we use the system functions if the time is inside their range?
-   Your system localtime() is probably more accurate, but our gmtime() is
-   fast and safe.
-*/
+/**
+ * @brief USE_SYSTEM_LOCALTIME USE_SYSTEM_GMTIME Should we use the system functions if the time is inside their range.
+ * @note See `docs/source/reimpl/time64_config.md:53` for detailed design rationale.
+ */
 #define USE_SYSTEM_LOCALTIME
-/* #define USE_SYSTEM_GMTIME */
+/**
+ * @brief define USE_SYSTEM_GMTIME.
+ * @note See `docs/source/reimpl/time64_config.md:60` for detailed design rationale.
+ */
 
 
-/* SYSTEM_LOCALTIME_MAX
-   SYSTEM_LOCALTIME_MIN
-   SYSTEM_GMTIME_MAX
-   SYSTEM_GMTIME_MIN
-   Maximum and minimum values your system's gmtime() and localtime()
-   can handle.  We will use your system functions if the time falls
-   inside these ranges.
-*/
+/**
+ * @brief SYSTEM_LOCALTIME_MAX SYSTEM_LOCALTIME_MIN SYSTEM_GMTIME_MAX SYSTEM_GMTIME_MIN Maximum and minimum values your system's gmtime() and.
+ * @note See `docs/source/reimpl/time64_config.md:63` for detailed design rationale.
+ */
 #define SYSTEM_LOCALTIME_MAX     2147483647
 #define SYSTEM_LOCALTIME_MIN    -2147483647
 #define SYSTEM_GMTIME_MAX        2147483647

@@ -1,5 +1,6 @@
-/*
- * audio.c — Multi-voice Ogg Vorbis Audio Mixer for Advena (PS Vita)
+/**
+ * @brief audio.c - Multi-voice Ogg Vorbis Audio Mixer for Advent (PS Vita).
+ * @note See `docs/source/audio.md:1` for detailed design rationale.
  */
 
 #include <psp2/audioout.h>
@@ -19,11 +20,10 @@
 #define SND_DIR3 "ux0:data/advena/assets/sound"
 
 #define AUDIO_RATE 44100
-// 512 -> 1024: halves the number of sceAudioOutOutput()/mixer-loop
-// iterations per second (86 -> 43 Hz), trading roughly 11.6ms of extra
-// output latency (grain/rate) for fewer thread wakeups/interrupts on the
-// dedicated audio core (SCE_KERNEL_CPU_MASK_USER_1, see audio_init below).
-// Not perceptible for this game's BGM/SFX use case.
+/**
+ * @brief 512 -> 1024: halves the number of sceAudioOutOutput()/mixer-loop iterations per second (86 -> 43 Hz), trading roughly 11.
+ * @note See `docs/source/audio.md:22` for detailed design rationale.
+ */
 #define AUDIO_GRAIN 1024
 
 #define VOICE_BGM    0
@@ -173,11 +173,10 @@ void audio_init(void) {
     audio_running = 1;
     audio_thread_id = sceKernelCreateThread("advena_audio_thread", audio_thread, 0x10000100, 0x10000, 0, 0, NULL);
     if (audio_thread_id >= 0) {
-        // Pin the mixer to a core distinct from the main render/logic thread
-        // (see sceKernelChangeThreadCpuAffinityMask in main.c, core 0) so
-        // neither steals cycles from the other. Same technique validated on
-        // real hardware in the sibling Zenonia 4 port (same Gamevil
-        // Nexus2/GxPZx engine family): unconditional, no build flag gate.
+        /**
+         * @brief Pin the mixer to a core distinct from the main render/logic thread (see sceKernelChangeThreadCpuAffinityMask in main.c, core 0) so neither.
+         * @note See `docs/source/audio.md:176` for detailed design rationale.
+         */
         int affinity_res = sceKernelChangeThreadCpuAffinityMask(audio_thread_id, SCE_KERNEL_CPU_MASK_USER_1);
         sceKernelStartThread(audio_thread_id, 0, NULL);
         l_success("[Audio] Audio mixer initialized (affinity->core 1, res=0x%08x).", affinity_res);

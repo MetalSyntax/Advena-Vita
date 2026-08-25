@@ -1,13 +1,10 @@
-/*
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
+ * @note See `docs/source/utils/init.md:1` for detailed design rationale.
  */
 
 /**
- * @file  init.h
- * @brief so-loader initialization routines.
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2021-2022 Rinnegatamante Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be.
  */
 
 #ifndef SOLOADER_INIT_H
@@ -27,20 +24,15 @@ void so_patch();
 void soloader_init_all();
 
 #ifdef INSTRUMENT_BLIT_CALLS
-// Bug 16 (PORTING_PLAN.md), 4th perf pass: real hardware GL instrumentation
-// showed draws=1/binds=1 per frame (a single full-screen quad), meaning the
-// .so composites the scene by software into a 480x320 buffer before ever
-// touching GL (uploaded whole via glTexSubImage2D every frame -- see
-// glutil.c). PutCompressImg (.so+0x140050, decompiled in
-// out_ghidra.c:258914) is the common sprite-blit dispatcher this .so
-// exports -- same function name/role Zenonia 4 (same GxPZx engine family)
-// used for its own proven hot-path probe. This counts calls/frame to it --
-// a non-destructive hook (runs the untouched original every time) to
-// confirm it's the real hot path and that it scales with enemy count.
+/**
+ * @brief Bug 16 (PORTING_PLAN.md), 4th perf pass.
+ * @note See `docs/source/utils/init.md:30` for detailed design rationale.
+ */
 uint32_t patch_get_and_reset_blit_calls();
-// Writes "OPNAME:count,OPNAME:count,..." (only non-zero enumDrawOP buckets
-// for this frame) into buf and resets the per-op histogram. See patch.c for
-// the enumDrawOP -> name mapping (from CMvGraphics::InitialBlend()).
+/**
+ * @brief Writes "OPNAME:count,OPNAME:count,.
+ * @note See `docs/source/utils/init.md:41` for detailed design rationale.
+ */
 void patch_format_and_reset_blit_histogram(char *buf, int buflen);
 #endif
 

@@ -1,11 +1,6 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2022      Rinnegatamante
- * Copyright (C) 2022      GrapheneCt
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2022 Rinnegatamante Copyright (C) 2022 GrapheneCt Copyright (C) 2022-2024 Volodymyr Atamanenko.
+ * @note See `docs/source/reimpl/pthr.md:1` for detailed design rationale.
  */
 
 #include "reimpl/pthr.h"
@@ -97,7 +92,7 @@ int forgetObject(const void * mut) {
     return 0;
 }
 
-// null check for `attr` must be performed before this
+/**< @brief null check for `attr` must be performed before this. */
 PTHR_INLINE int _attr_t_static_init(pthread_attr_t_bionic * attr) {
     if (attr->magic != 0x42424242) {
         attr->magic = 0x42424242;
@@ -107,12 +102,18 @@ PTHR_INLINE int _attr_t_static_init(pthread_attr_t_bionic * attr) {
     return 0;
 }
 
-// null check for `mutex` param must be performed before this, `attr` is fine as null
+/**
+ * @brief null check for `mutex` param must be performed before this, `attr` is fine as null.
+ * @note See `docs/source/reimpl/pthr.md:110` for detailed design rationale.
+ */
 PTHR_INLINE int _mutex_t_static_init(pthread_mutex_t_bionic * mutex, const pthread_mutexattr_t * attr) {
     int ret = 0, kind = PTHREAD_MUTEX_NORMAL;
 
     if (isObjectInitialized(mutex)) {
-        //logv_debug("mutex already initialized: %p", mutex);
+        /**
+         * @brief logv_debug("mutex already initialized: %p", mutex).
+         * @note See `docs/source/reimpl/pthr.md:115` for detailed design rationale.
+         */
         return ret;
     }
 
@@ -143,12 +144,18 @@ PTHR_INLINE int _mutex_t_static_init(pthread_mutex_t_bionic * mutex, const pthre
     return ret;
 }
 
-// null check for `cond` param must be performed before this, `attr` is fine as null
+/**
+ * @brief null check for `cond` param must be performed before this, `attr` is fine as null.
+ * @note See `docs/source/reimpl/pthr.md:146` for detailed design rationale.
+ */
 PTHR_INLINE int _cond_t_static_init(pthread_cond_t_bionic * cond, const pthread_condattr_t * attr) {
     int ret = 0;
 
     if (isObjectInitialized(cond)) {
-        //logv_debug("cond already initialized: %p", cond);
+        /**
+         * @brief logv_debug("cond already initialized: %p", cond).
+         * @note See `docs/source/reimpl/pthr.md:151` for detailed design rationale.
+         */
         return ret;
     }
 
@@ -169,15 +176,10 @@ PTHR_INLINE int _cond_t_static_init(pthread_cond_t_bionic * cond, const pthread_
 
 int pthread_create_soloader(pthread_t *thread, const pthread_attr_t_bionic *attr, void *(*start)(void *), void *param) {
     int ret;
-    // 512KB was hard-pinned for every thread regardless of what the game
-    // asked for (the bionic attr's own requested size, even if explicitly
-    // set via pthread_attr_setstacksize_soloader(), was clobbered on the
-    // `attr` branch below). The engine's deep init/UI call chains (e.g.
-    // GVUIPlayerController construction -> InitialPlayerPadSet) overflow
-    // that: confirmed via psp2dmp, a Data Abort on a plain stack-store
-    // instruction right at a function's prologue, with SP sitting in a
-    // poisoned/unmapped guard region. Raise the floor instead of ever
-    // shrinking an explicit larger request.
+    /**
+     * @brief 512KB was hard-pinned for every thread regardless of what the game asked for (the bionic attr's own requested size, even if explicitly set).
+     * @note See `docs/source/reimpl/pthr.md:172` for detailed design rationale.
+     */
     const size_t MIN_STACK_SIZE = 2 * 1024 * 1024;
 
     if (!attr) {

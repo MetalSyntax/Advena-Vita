@@ -1,10 +1,6 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2021      Rinnegatamante
- * Copyright (C) 2022-2023 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2021 Rinnegatamante Copyright (C) 2022-2023 Volodymyr Atamanenko This software may be modified.
+ * @note See `docs/source/utils/glutil.md:1` for detailed design rationale.
  */
 
 #include "utils/glutil.h"
@@ -21,7 +17,7 @@
 #include <psp2/kernel/sysmem.h>
 #include <psp2/io/stat.h>
 
-// Helpers for our handling of shaders
+/**< @brief Helpers for our handling of shaders. */
 GLboolean skip_next_compile = GL_FALSE;
 char next_shader_fname[256];
 void load_shader(GLuint shader, const char * string, size_t length);
@@ -39,31 +35,20 @@ void gl_preload() {
 }
 
 void gl_init() {
-    // No MSAA / no triple buffering: this is the config confirmed working on
-    // real hardware for the same engine (com.gamevil.nexus2.Natives) in the
-    // Zenonia 2/3 Vita ports and in Prince of Persia. Advena was the only
-    // port in this family initializing with SCE_GXM_MULTISAMPLE_4X instead
-    // of _NONE. Re-confirmed "sin cambios" during the Bug 16 perf pass
-    // (PORTING_PLAN.md) -- left untouched on purpose, do not enable triple
-    // buffering here without new hardware evidence for this specific port.
+    /**
+     * @brief No MSAA / no triple buffering.
+     * @note See `docs/source/utils/glutil.md:42` for detailed design rationale.
+     */
     vglUseTripleBuffering(GL_FALSE);
-    // Bug 16 (PORTING_PLAN.md), 3rd perf pass: this port's .so uploads real
-    // client-side vertex arrays (glVertexPointer/glTexCoordPointer + real
-    // glDrawArrays/glDrawElements) every frame instead of using VBOs -- with
-    // 10+ enemies attacking at once that's a lot of small CPU writes into
-    // vitaGL's internal pools each frame. vitaGL's default pools are
-    // uncached memory (slow CPU writes, fast GPU reads); switching to cached
-    // memory makes those per-draw CPU writes fast at the cost of vitaGL
-    // having to flush the cache before the GPU reads it, which vitaGL does
-    // internally -- this is the standard fix for CPU-write-bound immediate-
-    // mode ports like this one. Must be called before vglInit*.
+    /**
+     * @brief Bug 16 (PORTING_PLAN.md), 3rd perf pass.
+     * @note See `docs/source/utils/glutil.md:50` for detailed design rationale.
+     */
     vglUseCachedMem(GL_TRUE);
-    // Legacy immediate-mode pool bumped 6MB -> 8MB: this port issues real
-    // glDrawArrays/glDrawElements calls directly from the .so (client-side
-    // vertex arrays, not VBOs -- see PORTING_PLAN.md Bug 16), so headroom
-    // here avoids vitaGL falling back to on-demand pool growth/reclaim mid-
-    // frame during busy combat scenes. Does not touch the MSAA/triple-
-    // buffering config above.
+    /**
+     * @brief Legacy immediate-mode pool bumped 6MB -> 8MB: this port issues real glDrawArrays/glDrawElements calls directly from the .
+     * @note See `docs/source/utils/glutil.md:61` for detailed design rationale.
+     */
     vglInitExtended(0, 960, 544, 8 * 1024 * 1024, SCE_GXM_MULTISAMPLE_NONE);
 }
 
@@ -72,23 +57,12 @@ void gl_swap() {
 }
 
 #ifdef INSTRUMENT_GL_CALLS
-// Bug 16 (PORTING_PLAN.md) diagnostic: Advena renders via real GL calls
-// (unlike Zenonia 4's software rasterizer), so the equivalent of that port's
-// PutCompressImg hot-path probe is counting draw calls and texture bind/
-// switch volume per frame. Report via game_log() (unconditional -- l_info()
-// compiles to nothing outside DEBUG_SOLOADER builds, which would make this
-// build flag silently produce no output).
+/**< @brief Bug 16 (PORTING_PLAN.md) diagnostic. */
 static uint32_t instr_draw_calls = 0;
 static uint32_t instr_bind_calls = 0;
 static uint32_t instr_texture_switches = 0;
 static GLuint instr_last_texture = (GLuint) -1;
-// 4th perf pass (PORTING_PLAN.md Bug 16): draws=1/binds=1 per frame (measured
-// on real hardware, whole play session incl. combat) rules out per-sprite GL
-// draw calls as the bottleneck -- the .so blits a single full-frame quad per
-// frame, meaning it composites by software first (same architecture family
-// as Zenonia 4's CGxPZxZero::Blt). This tracks whether that single quad's
-// texture is being re-uploaded (glTexImage2D) or updated (glTexSubImage2D)
-// every frame, and how many pixels that costs -- the likely real hot path.
+/**< @brief 4th perf pass (PORTING_PLAN.md Bug 16). */
 static uint32_t instr_teximage_calls = 0;
 static uint32_t instr_texsubimage_calls = 0;
 static uint64_t instr_teximage_pixels = 0;

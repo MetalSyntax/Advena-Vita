@@ -1,15 +1,10 @@
-/*
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
+ * @note See `docs/source/reimpl/egl.md:1` for detailed design rationale.
  */
 
 /**
- * @file  egl.h
- * @brief Implementations for EGL functions. Most of these are just stubs that
- *        don't actually do anything, but we try to conform to the standard
- *        as closely as possible in terms of return values, etc.
+ * @brief Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
  */
 
 #ifndef SOLOADER_EGL_H

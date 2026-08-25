@@ -1,49 +1,21 @@
-/*
+/**
+ * @brief Copyright (c) 2007-2008 Michael G Schwern This software originally derived from Paul Sheer's pivotal_gmtime_r.
+ * @note See `docs/source/reimpl/time64.md:1` for detailed design rationale.
+ */
 
-Copyright (c) 2007-2008  Michael G Schwern
-
-This software originally derived from Paul Sheer's pivotal_gmtime_r.c.
-
-The MIT License:
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-*/
-
-/* See http://code.google.com/p/y2038 for this code's origin */
+/**
+ * @brief See http://code.
+ * @note See `docs/source/reimpl/time64.md:29` for detailed design rationale.
+ */
 
 #if defined(__LP64__)
 #error This cruft should be LP32 only!
 #endif
 
-/*
-
-Programmers who have available to them 64-bit time values as a 'long
-long' type can use localtime64_r() and gmtime64_r() which correctly
-converts the time even on 32-bit systems. Whether you have 64-bit time
-values will depend on the operating system.
-
-localtime64_r() is a 64-bit equivalent of localtime_r().
-
-gmtime64_r() is a 64-bit equivalent of gmtime_r().
-
-*/
+/**
+ * @brief Programmers who have available to them 64-bit time values as a 'long long' type can use localtime64_r() and gmtime64_r() which correctly.
+ * @note See `docs/source/reimpl/time64.md:35` for detailed design rationale.
+ */
 
 #include <assert.h>
 #include <stdlib.h>
@@ -53,13 +25,20 @@ gmtime64_r() is a 64-bit equivalent of gmtime_r().
 #include <errno.h>
 #include "time64.h"
 
-/* BIONIC_BEGIN */
-/* the following are here to avoid exposing time64_config.h and
- * other types in our public time64.h header
+/**
+ * @brief BIONIC_BEGIN.
+ * @note See `docs/source/reimpl/time64.md:56` for detailed design rationale.
+ */
+/**
+ * @brief the following are here to avoid exposing time64_config.
+ * @note See `docs/source/reimpl/time64.md:57` for detailed design rationale.
  */
 #include "time64_config.h"
 
-/* Not everyone has gm/localtime_r(), provide a replacement */
+/**
+ * @brief Not everyone has gm/localtime_r(), provide a replacement.
+ * @note See `docs/source/reimpl/time64.md:62` for detailed design rationale.
+ */
 #ifdef HAS_LOCALTIME_R
 # define LOCALTIME_R(clock, result) localtime_r(clock, result)
 #else
@@ -77,8 +56,10 @@ typedef int64_t  Year;
 #define  TM      tm
 /* BIONIC_END */
 
-/* Spec says except for stftime() and the _r() functions, these
-   all return static memory.  Stabbings! */
+/**
+ * @brief Spec says except for stftime() and the _r() functions, these all return static memory.
+ * @note See `docs/source/reimpl/time64.md:80` for detailed design rationale.
+ */
 static struct TM   Static_Return_Date;
 static char        Static_Return_String[35];
 
@@ -103,19 +84,28 @@ static char const mon_name[12][3] = {
 
 static const int length_of_year[2] = { 365, 366 };
 
-/* Some numbers relating to the gregorian cycle */
+/**
+ * @brief Some numbers relating to the gregorian cycle.
+ * @note See `docs/source/reimpl/time64.md:106` for detailed design rationale.
+ */
 static const Year     years_in_gregorian_cycle   = 400;
 #define               days_in_gregorian_cycle      ((365 * 400) + 100 - 4 + 1)
 static const Time64_T seconds_in_gregorian_cycle = days_in_gregorian_cycle * 60LL * 60LL * 24LL;
 
-/* Year range we can trust the time funcitons with */
+/**
+ * @brief Year range we can trust the time funcitons with.
+ * @note See `docs/source/reimpl/time64.md:111` for detailed design rationale.
+ */
 #define MAX_SAFE_YEAR 2037
 #define MIN_SAFE_YEAR 1971
 
-/* 28 year Julian calendar cycle */
+/**
+ * @brief 28 year Julian calendar cycle.
+ * @note See `docs/source/reimpl/time64.md:115` for detailed design rationale.
+ */
 #define SOLAR_CYCLE_LENGTH 28
 
-/* Year cycle from MAX_SAFE_YEAR down. */
+/**< @brief Year cycle from MAX_SAFE_YEAR down. */
 static const int safe_years_high[SOLAR_CYCLE_LENGTH] = {
         2016, 2017, 2018, 2019,
         2020, 2021, 2022, 2023,
@@ -126,7 +116,7 @@ static const int safe_years_high[SOLAR_CYCLE_LENGTH] = {
         2012, 2013, 2014, 2015
 };
 
-/* Year cycle from MIN_SAFE_YEAR up */
+/**< @brief Year cycle from MIN_SAFE_YEAR up. */
 static const int safe_years_low[SOLAR_CYCLE_LENGTH] = {
         1996, 1997, 1998, 1971,
         1972, 1973, 1974, 1975,
@@ -137,11 +127,14 @@ static const int safe_years_low[SOLAR_CYCLE_LENGTH] = {
         1992, 1993, 1994, 1995,
 };
 
-/* Let's assume people are going to be looking for dates in the future.
-   Let's provide some cheats so you can skip ahead.
-   This has a 4x speed boost when near 2008.
-*/
-/* Number of days since epoch on Jan 1st, 2008 GMT */
+/**
+ * @brief Let's assume people are going to be looking for dates in the future.
+ * @note See `docs/source/reimpl/time64.md:140` for detailed design rationale.
+ */
+/**
+ * @brief Number of days since epoch on Jan 1st, 2008 GMT.
+ * @note See `docs/source/reimpl/time64.md:144` for detailed design rationale.
+ */
 #define CHEAT_DAYS  (1199145600 / 24 / 60 / 60)
 #define CHEAT_YEARS 108
 
@@ -166,7 +159,10 @@ static const int safe_years_low[SOLAR_CYCLE_LENGTH] = {
 #    define SHOULD_USE_SYSTEM_GMTIME(a)         (0)
 #endif
 
-/* Multi varadic macros are a C99 thing, alas */
+/**
+ * @brief Multi varadic macros are a C99 thing, alas.
+ * @note See `docs/source/reimpl/time64.md:169` for detailed design rationale.
+ */
 #ifdef TIME_64_DEBUG
 #    define TRACE(format) (fprintf(stderr, format))
 #    define TRACE1(format, var1)    (fprintf(stderr, format, var1))
@@ -189,10 +185,10 @@ static int is_exception_century(Year year)
 }
 
 
-/* timegm() is not in the C or POSIX spec, but it is such a useful
-   extension I would be remiss in leaving it out.  Also I need it
-   for localtime64()
-*/
+/**
+ * @brief timegm() is not in the C or POSIX spec, but it is such a useful extension I would be remiss in leaving it out.
+ * @note See `docs/source/reimpl/time64.md:192` for detailed design rationale.
+ */
 Time64_T timegm64(const struct TM *date) {
     Time64_T days    = 0;
     Time64_T seconds = 0;
@@ -244,7 +240,10 @@ Time64_T timegm64(const struct TM *date) {
 #if !defined(NDEBUG)
 static int check_tm(struct TM *tm)
 {
-    /* Don't forget leap seconds */
+    /**
+     * @brief Don't forget leap seconds.
+     * @note See `docs/source/reimpl/time64.md:247` for detailed design rationale.
+     */
     assert(tm->tm_sec >= 0);
     assert(tm->tm_sec <= 61);
 
@@ -276,9 +275,10 @@ static int check_tm(struct TM *tm)
 #endif
 
 
-/* The exceptional centuries without leap years cause the cycle to
-   shift by 16
-*/
+/**
+ * @brief The exceptional centuries without leap years cause the cycle to shift by 16.
+ * @note See `docs/source/reimpl/time64.md:279` for detailed design rationale.
+ */
 static Year cycle_offset(Year year)
 {
     const Year start_year = 2000;
@@ -297,23 +297,10 @@ static Year cycle_offset(Year year)
     return exceptions * 16;
 }
 
-/* For a given year after 2038, pick the latest possible matching
-   year in the 28 year calendar cycle.
-
-   A matching year...
-   1) Starts on the same day of the week.
-   2) Has the same leap year status.
-
-   This is so the calendars match up.
-
-   Also the previous year must match.  When doing Jan 1st you might
-   wind up on Dec 31st the previous year when doing a -UTC time zone.
-
-   Finally, the next year must have the same start day of week.  This
-   is for Dec 31st with a +UTC time zone.
-   It doesn't need the same leap year status since we only care about
-   January 1st.
-*/
+/**
+ * @brief For a given year after 2038, pick the latest possible matching year in the 28 year calendar cycle.
+ * @note See `docs/source/reimpl/time64.md:300` for detailed design rationale.
+ */
 static int safe_year(const Year year)
 {
     int safe_year = 0;
@@ -325,15 +312,24 @@ static int safe_year(const Year year)
 
     year_cycle = year + cycle_offset(year);
 
-    /* safe_years_low is off from safe_years_high by 8 years */
+    /**
+     * @brief safe_years_low is off from safe_years_high by 8 years.
+     * @note See `docs/source/reimpl/time64.md:328` for detailed design rationale.
+     */
     if( year < MIN_SAFE_YEAR )
         year_cycle -= 8;
 
-    /* Change non-leap xx00 years to an equivalent */
+    /**
+     * @brief Change non-leap xx00 years to an equivalent.
+     * @note See `docs/source/reimpl/time64.md:332` for detailed design rationale.
+     */
     if( is_exception_century(year) )
         year_cycle += 11;
 
-    /* Also xx01 years, since the previous year will be wrong */
+    /**
+     * @brief Also xx01 years, since the previous year will be wrong.
+     * @note See `docs/source/reimpl/time64.md:336` for detailed design rationale.
+     */
     if( is_exception_century(year - 1) )
         year_cycle += 17;
 
@@ -384,7 +380,10 @@ static void copy_tm_to_TM(const struct tm *src, struct TM *dest) {
 #           endif
 
 #       else
-        /* They're the same type */
+        /**
+         * @brief They're the same type.
+         * @note See `docs/source/reimpl/time64.md:387` for detailed design rationale.
+         */
         memcpy(dest, src, sizeof(*dest));
 #       endif
     }
@@ -416,14 +415,20 @@ static void copy_TM_to_tm(const struct TM *src, struct tm *dest) {
 #           endif
 
 #       else
-        /* They're the same type */
+        /**
+         * @brief They're the same type.
+         * @note See `docs/source/reimpl/time64.md:419` for detailed design rationale.
+         */
         memcpy(dest, src, sizeof(*dest));
 #       endif
     }
 }
 
 
-/* Simulate localtime_r() to the best of our ability */
+/**
+ * @brief Simulate localtime_r() to the best of our ability.
+ * @note See `docs/source/reimpl/time64.md:426` for detailed design rationale.
+ */
 struct tm * fake_localtime_r(const time_t *clock, struct tm *result) {
     const struct tm *static_result = localtime(clock);
 
@@ -441,7 +446,10 @@ struct tm * fake_localtime_r(const time_t *clock, struct tm *result) {
 
 
 
-/* Simulate gmtime_r() to the best of our ability */
+/**
+ * @brief Simulate gmtime_r() to the best of our ability.
+ * @note See `docs/source/reimpl/time64.md:444` for detailed design rationale.
+ */
 struct tm * fake_gmtime_r(const time_t *clock, struct tm *result) {
     const struct tm *static_result = gmtime(clock);
 
@@ -483,10 +491,9 @@ static Time64_T seconds_between_years(Year left_year, Year right_year) {
 }
 
 
-/* This implementation violates mktime specification, according to which
-   tm_yday, tm_wday, and tm_isdst fields should be updated. This function
-   leaves input_date unmodified. Given that there were no bug reports, fixing
-   it might cause more troubles than just leaving it as it is.
+/**
+ * @brief This implementation violates mktime specification, according to which tm_yday, tm_wday, and tm_isdst fields should be updated.
+ * @note See `docs/source/reimpl/time64.md:486` for detailed design rationale.
  */
 Time64_T mktime64(const struct TM *input_date) {
     struct tm safe_date;
@@ -499,7 +506,10 @@ Time64_T mktime64(const struct TM *input_date) {
         return (Time64_T)mktime(&safe_date);
     }
 
-    /* Have to make the year safe in date else it won't fit in safe_date */
+    /**
+     * @brief Have to make the year safe in date else it won't fit in safe_date.
+     * @note See `docs/source/reimpl/time64.md:502` for detailed design rationale.
+     */
     date = *input_date;
     date.tm_year = safe_year(year) - 1900;
     copy_TM_to_tm(&date, &safe_date);
@@ -512,7 +522,10 @@ Time64_T mktime64(const struct TM *input_date) {
 }
 
 
-/* Because I think mktime() is a crappy name */
+/**
+ * @brief Because I think mktime() is a crappy name.
+ * @note See `docs/source/reimpl/time64.md:515` for detailed design rationale.
+ */
 Time64_T timelocal64(const struct TM *date) {
     return mktime64(date);
 }
@@ -530,7 +543,10 @@ struct TM *gmtime64_r (const Time64_T *in_time, struct TM *p)
 
     assert(p != NULL);
 
-    /* Use the system gmtime() if time_t is small enough */
+    /**
+     * @brief Use the system gmtime() if time_t is small enough.
+     * @note See `docs/source/reimpl/time64.md:533` for detailed design rationale.
+     */
     if( SHOULD_USE_SYSTEM_GMTIME(*in_time) ) {
         time_t safe_time = *in_time;
         struct tm safe_date;
@@ -574,7 +590,10 @@ struct TM *gmtime64_r (const Time64_T *in_time, struct TM *p)
     }
 
     if (m >= 0) {
-        /* Gregorian cycles, this is huge optimization for distant times */
+        /**
+         * @brief Gregorian cycles, this is huge optimization for distant times.
+         * @note See `docs/source/reimpl/time64.md:577` for detailed design rationale.
+         */
         cycles = (int)(m / (Time64_T) days_in_gregorian_cycle);
         if( cycles ) {
             m -= (cycles * (Time64_T) days_in_gregorian_cycle);
@@ -598,7 +617,10 @@ struct TM *gmtime64_r (const Time64_T *in_time, struct TM *p)
     } else {
         year--;
 
-        /* Gregorian cycles */
+        /**
+         * @brief Gregorian cycles.
+         * @note See `docs/source/reimpl/time64.md:601` for detailed design rationale.
+         */
         cycles = (int)((m / (Time64_T) days_in_gregorian_cycle) + 1);
         if( cycles ) {
             m -= (cycles * (Time64_T) days_in_gregorian_cycle);
@@ -630,7 +652,10 @@ struct TM *gmtime64_r (const Time64_T *in_time, struct TM *p)
         return NULL;
     }
 
-    /* At this point m is less than a year so casting to an int is safe */
+    /**
+     * @brief At this point m is less than a year so casting to an int is safe.
+     * @note See `docs/source/reimpl/time64.md:633` for detailed design rationale.
+     */
     p->tm_mday = (int) m + 1;
     p->tm_yday = julian_days_by_month[leap][v_tm_mon] + (int)m;
     p->tm_sec  = v_tm_sec;
@@ -655,7 +680,10 @@ struct TM *localtime64_r (const Time64_T *time, struct TM *local_tm)
 
     assert(local_tm != NULL);
 
-    /* Use the system localtime() if time_t is small enough */
+    /**
+     * @brief Use the system localtime() if time_t is small enough.
+     * @note See `docs/source/reimpl/time64.md:658` for detailed design rationale.
+     */
     if( SHOULD_USE_SYSTEM_LOCALTIME(*time) ) {
         safe_time = *time;
 
@@ -706,26 +734,26 @@ struct TM *localtime64_r (const Time64_T *time, struct TM *local_tm)
 
     month_diff = local_tm->tm_mon - gm_tm.tm_mon;
 
-    /*  When localtime is Dec 31st previous year and
-        gmtime is Jan 1st next year.
-    */
+    /**
+     * @brief When localtime is Dec 31st previous year and gmtime is Jan 1st next year.
+     * @note See `docs/source/reimpl/time64.md:709` for detailed design rationale.
+     */
     if( month_diff == 11 ) {
         local_tm->tm_year--;
     }
 
-    /*  When localtime is Jan 1st, next year and
-        gmtime is Dec 31st, previous year.
-    */
+    /**
+     * @brief When localtime is Jan 1st, next year and gmtime is Dec 31st, previous year.
+     * @note See `docs/source/reimpl/time64.md:716` for detailed design rationale.
+     */
     if( month_diff == -11 ) {
         local_tm->tm_year++;
     }
 
-    /* GMT is Jan 1st, xx01 year, but localtime is still Dec 31st
-       in a non-leap xx00.  There is one point in the cycle
-       we can't account for which the safe xx00 year is a leap
-       year.  So we need to correct for Dec 31st comming out as
-       the 366th day of the year.
-    */
+    /**
+     * @brief GMT is Jan 1st, xx01 year, but localtime is still Dec 31st in a non-leap xx00.
+     * @note See `docs/source/reimpl/time64.md:723` for detailed design rationale.
+     */
     if( !IS_LEAP(local_tm->tm_year) && local_tm->tm_yday == 365 )
         local_tm->tm_yday--;
 
@@ -751,24 +779,25 @@ static int valid_tm_mon( const struct TM* date ) {
 
 
 char *asctime64_r( const struct TM* date, char *result ) {
-    /* I figure everything else can be displayed, even hour 25, but if
-       these are out of range we walk off the name arrays */
+    /**
+     * @brief I figure everything else can be displayed, even hour 25, but if these are out of range we walk off the name arrays.
+     * @note See `docs/source/reimpl/time64.md:754` for detailed design rationale.
+     */
     if (!valid_tm_wday(date) || !valid_tm_mon(date)) {
         return NULL;
     }
 
-    /* Docs state this function does not support years beyond 9999. */
+    /**
+     * @brief Docs state this function does not support years beyond 9999.
+     * @note See `docs/source/reimpl/time64.md:760` for detailed design rationale.
+     */
     if (1900 + date->tm_year > 9999) {
         return NULL;
     }
 
-    /*
-     * The IBM docs for this function state that the result buffer can be
-     * assumed to be at least 26 bytes wide. The docs also state that this is
-     * only valid for years <= 9999, so we know this format string will not
-     * print more than that many characters.
-     *
-     * http://www-01.ibm.com/support/knowledgecenter/SSLTBW_2.1.0/com.ibm.zos.v2r1.bpxbd00/asctimer.htm
+    /**
+     * @brief The IBM docs for this function state that the result buffer can be assumed to be at least 26 bytes wide.
+     * @note See `docs/source/reimpl/time64.md:765` for detailed design rationale.
      */
     snprintf(result, 26, "%.3s %.3s%3d %.2d:%.2d:%.2d %d\n",
              wday_name[date->tm_wday],
@@ -789,7 +818,10 @@ char *ctime64_r( const Time64_T* time, char* result ) {
 }
 
 
-/* Non-thread safe versions of the above */
+/**
+ * @brief Non-thread safe versions of the above.
+ * @note See `docs/source/reimpl/time64.md:792` for detailed design rationale.
+ */
 struct TM *localtime64(const Time64_T *time) {
     return localtime64_r(time, &Static_Return_Date);
 }

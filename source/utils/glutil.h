@@ -1,15 +1,10 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2021      Rinnegatamante
- * Copyright (C) 2022-2023 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2021 Rinnegatamante Copyright (C) 2022-2023 Volodymyr Atamanenko This software may be modified.
+ * @note See `docs/source/utils/glutil.md:1` for detailed design rationale.
  */
 
 /**
- * @file  glutil.h
- * @brief OpenGL API initializer, related functions.
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2021 Rinnegatamante Copyright (C) 2022-2023 Volodymyr Atamanenko This software may be modified.
  */
 
 #ifndef SOLOADER_GLUTIL_H
@@ -33,11 +28,10 @@ void glShaderSource_soloader(GLuint shader, GLsizei count,
                              const GLchar **string, const GLint *_length);
 
 #ifdef INSTRUMENT_GL_CALLS
-// Bug 16 (PORTING_PLAN.md) diagnostic instrumentation: count draw calls and
-// texture binds/switches per frame, the GL-pipeline equivalent of Zenonia
-// 4's PutCompressImg hot-path probe. Zero-cost when INSTRUMENT_GL_CALLS is
-// not defined (dynlib.c resolves the .so's imports straight to the real
-// vitaGL functions instead of these wrappers).
+/**
+ * @brief Bug 16 (PORTING_PLAN.md) diagnostic instrumentation.
+ * @note See `docs/source/utils/glutil.md:36` for detailed design rationale.
+ */
 void glDrawArrays_soloader(GLenum mode, GLint first, GLsizei count);
 void glDrawElements_soloader(GLenum mode, GLsizei count, GLenum type, const void *indices);
 void glBindTexture_soloader(GLenum target, GLuint texture);

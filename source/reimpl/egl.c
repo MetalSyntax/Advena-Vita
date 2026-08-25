@@ -1,8 +1,6 @@
-/*
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
+ * @note See `docs/source/reimpl/egl.md:1` for detailed design rationale.
  */
 
 #include "reimpl/egl.h"
@@ -80,7 +78,10 @@ EGLBoolean eglQuerySurface(EGLDisplay dpy, EGLSurface eglSurface,
             *value = 0;
             break;
         case EGL_MULTISAMPLE_RESOLVE:
-            // ignored when creating the surface, return default
+            /**
+             * @brief ignored when creating the surface, return default.
+             * @note See `docs/source/reimpl/egl.md:83` for detailed design rationale.
+             */
             *value = EGL_MULTISAMPLE_RESOLVE_DEFAULT;
             break;
         case EGL_HORIZONTAL_RESOLUTION:
@@ -88,18 +89,27 @@ EGLBoolean eglQuerySurface(EGLDisplay dpy, EGLSurface eglSurface,
             *value = 220 * EGL_DISPLAY_SCALING; // VITA DPI is 220
             break;
         case EGL_PIXEL_ASPECT_RATIO:
-            // Please don't ask why * EGL_DISPLAY_SCALING, the document says it
+            /**
+             * @brief Please don't ask why * EGL_DISPLAY_SCALING, the document says it.
+             * @note See `docs/source/reimpl/egl.md:91` for detailed design rationale.
+             */
             *value = 960 / 544 * EGL_DISPLAY_SCALING;
             break;
         case EGL_RENDER_BUFFER:
             *value = EGL_BACK_BUFFER;
             break;
         case EGL_VG_COLORSPACE:
-            // ignored when creating the surface, return default
+            /**
+             * @brief ignored when creating the surface, return default.
+             * @note See `docs/source/reimpl/egl.md:98` for detailed design rationale.
+             */
             *value = EGL_VG_COLORSPACE_sRGB;
             break;
         case EGL_VG_ALPHA_FORMAT:
-            // ignored when creating the surface, return default
+            /**
+             * @brief ignored when creating the surface, return default.
+             * @note See `docs/source/reimpl/egl.md:102` for detailed design rationale.
+             */
             *value = EGL_VG_ALPHA_FORMAT_NONPRE;
             break;
         case EGL_TIMESTAMPS_ANDROID:
@@ -274,13 +284,16 @@ EGLBoolean eglChooseConfig(EGLDisplay dpy, const EGLint *attrib_list,
 EGLContext eglCreateContext(EGLDisplay dpy, EGLConfig config,
                             EGLContext share_context,
                             const EGLint *attrib_list) {
-    // Just something that is a valid pointer which can be freed later
+    /**< @brief Just something that is a valid pointer which can be freed later. */
     return strdup("ctx");
 }
 
 EGLSurface eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config,
                                   void * win, const EGLint *attrib_list) {
-    // Just something that is a valid pointer which can be freed later
+    /**
+     * @brief Just something that is a valid pointer which can be freed later.
+     * @note See `docs/source/reimpl/egl.md:283` for detailed design rationale.
+     */
     return strdup("surface");
 }
 

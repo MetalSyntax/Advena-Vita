@@ -1,13 +1,6 @@
-/*
- * Written by J.T. Conklin <jtc@netbsd.org>.
- *
- * Public domain.
- */
+/**< @brief Written by J.T. Conklin <jtc@netbsd.org>. Public domain. */
 
-/**
- * @file  _ctype.c
- * @brief `ctype`, `tolower_tab`, `toupper_tab` as they are on Bionic (Android)
- */
+/**< @brief `ctype`, `tolower_tab`, `toupper_tab` as they are on Bionic (Android). */
 
 #include <stdio.h>
 #include <ctype.h>

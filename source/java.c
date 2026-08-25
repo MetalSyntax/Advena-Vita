@@ -1,5 +1,6 @@
-/*
- * java.c — FalsoJNI bindings and callbacks for Advena (PS Vita)
+/**
+ * @brief java.c — FalsoJNI bindings and callbacks for Advena (PS Vita).
+ * @note See `docs/source/java.md:1` for detailed design rationale.
  */
 
 #include <falso_jni/FalsoJNI_Impl.h>
@@ -113,9 +114,7 @@ static jobject advena_new_byte_array_str(const char *s) {
     return (jobject) jda;
 }
 
-/*
- * JNI Handlers
- */
+/**< @brief JNI Handlers. */
 
 jobject Advena_readAssets(jmethodID id, va_list args) {
     jstring filename = va_arg(args, jstring);
@@ -189,17 +188,9 @@ jobject Advena_getPhoneModel(jmethodID id, va_list args) {
 }
 
 jobject Advena_getAbsolueFilePath(jmethodID id, va_list args) {
-    /*
-     * On real Android this mirrors Context.getFilesDir().getAbsolutePath()
-     * (see Natives.getAbsolueFilePath()/NexusUtils.getAbsolueFilePath() in
-     * the decompiled APK). The native engine calls this JNI method directly
-     * (not through advena_resolve_asset_path) to build fopen() paths for its
-     * own private read/write state: save slots (s0.dat/s1.dat/s2.dat),
-     * game/options data (g.dat/g_an_g.dat/op.dat) and on-screen UI layout
-     * files (_uiButton_N/_uiDpad) — confirmed via logs/advena_latest.log and
-     * strings(1) on libgameDSO.so. Asset loading is handled separately by
-     * advena_resolve_asset_path()/Advena_readAssets(), which never consults
-     * this path, so it is safe to point this at the saves/ directory.
+    /**
+     * @brief On real Android this mirrors Context.
+     * @note See `docs/source/java.md:192` for detailed design rationale.
      */
     mkdir("ux0:data/advena/saves", 0777);
     return (jobject) "ux0:data/advena/saves";
@@ -301,8 +292,9 @@ jint Advena_IntZero(jmethodID id, va_list args) {
     return 0;
 }
 
-/*
- * Save file handlers (ux0:data/advena/saves/<name>)
+/**
+ * @brief Save file handlers (ux0:data/advena/saves/<name>).
+ * @note See `docs/source/java.md:304` for detailed design rationale.
  */
 
 static void resolve_save_path(const char *name, char *out, size_t out_size) {
@@ -394,8 +386,9 @@ jint Advena_deleteFile(jmethodID id, va_list args) {
     return 1;
 }
 
-/*
- * Font GFA Handlers
+/**
+ * @brief Font GFA Handlers.
+ * @note See `docs/source/java.md:397` for detailed design rationale.
  */
 
 #define GFA_MAX_FONTS 5
@@ -547,8 +540,9 @@ jobject Advena_GFA_GetPixels16(jmethodID id, va_list args) {
     return (jobject) g_gfa_pixels16_jda;
 }
 
-/*
- * Method ID Table
+/**
+ * @brief Method ID Table.
+ * @note See `docs/source/java.md:550` for detailed design rationale.
  */
 
 NameToMethodID nameToMethodId[] = {

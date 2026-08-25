@@ -1,8 +1,6 @@
-/*
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
+ * @note See `docs/source/utils/logger.md:1` for detailed design rationale.
  */
 
 #include "utils/logger.h"
@@ -38,7 +36,10 @@ static void _ensure_log_file(void) {
         int chosen_index = 1;
         char filepath[256];
 
-        // Search for the next available log file from 001 to 999
+        /**
+         * @brief Search for the next available log file from 001 to 999.
+         * @note See `docs/source/utils/logger.md:41` for detailed design rationale.
+         */
         for (int i = 1; i <= 999; i++) {
             snprintf(filepath, sizeof(filepath), "ux0:data/advena/logs/advena_%03d.log", i);
             FILE *test = fopen(filepath, "r");

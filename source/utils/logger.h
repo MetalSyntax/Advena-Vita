@@ -1,13 +1,10 @@
-/*
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
+ * @note See `docs/source/utils/logger.md:1` for detailed design rationale.
  */
 
 /**
- * @file  logger.h
- * @brief Logging utilities.
+ * @brief Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
  */
 
 #ifndef SOLOADER_LOGGER_H

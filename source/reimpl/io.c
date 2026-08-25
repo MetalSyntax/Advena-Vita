@@ -1,10 +1,6 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2022      Rinnegatamante
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2022 Rinnegatamante Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified.
+ * @note See `docs/source/reimpl/io.md:1` for detailed design rationale.
  */
 
 #include "reimpl/io.h"
@@ -25,20 +21,13 @@
 #include "utils/logger.h"
 #include "utils/utils.h"
 
-// Includes the following inline utilities:
-// int oflags_musl_to_newlib(int flags);
-// dirent64_bionic * dirent_newlib_to_bionic(struct dirent* dirent_newlib);
-// void stat_newlib_to_bionic(struct stat * src, stat64_bionic * dst);
+/**< @brief Includes the following inline utilities. */
 #include "reimpl/bits/_struct_converters.c"
 
-// Real save-game / progress files used by the engine (CUISubMenuSaveSlot's
-// s0/s1/s2 slots plus the shared "global" data). The engine builds these
-// paths itself as getAbsolueFilePath() + filename (i.e. already prefixed
-// with "ux0:data/advena/"), so they must be special-cased *before* the
-// generic "already an absolute sceIo path" passthrough below, otherwise
-// they land in the data root instead of the saves/ subfolder.
-// op.dat (options) and _uiDpad/_uiButton_N (control layout) are
-// configuration, not save progress, so they intentionally stay in the root.
+/**
+ * @brief Real save-game / progress files used by the engine (CUISubMenuSaveSlot's s0/s1/s2 slots plus the shared "global" data).
+ * @note See `docs/source/reimpl/io.md:34` for detailed design rationale.
+ */
 static const char *g_save_basenames[] = {
     "s0.dat", "s1.dat", "s2.dat", "g.dat", "g_an_g.dat", NULL
 };
@@ -76,7 +65,10 @@ static void resolve_path_soloader(const char *path, char *out, size_t out_len) {
         path += 2;
     }
 
-    // Skip leading /sdcard/ or /data/
+    /**
+     * @brief Skip leading /sdcard/ or /data/.
+     * @note See `docs/source/reimpl/io.md:79` for detailed design rationale.
+     */
     if (strncmp(path, "/sdcard/", 8) == 0) {
         path += 8;
     } else if (strncmp(path, "/data/", 6) == 0) {
@@ -104,18 +96,10 @@ static void resolve_path_soloader(const char *path, char *out, size_t out_len) {
     snprintf(out, out_len, "ux0:data/advena/assets/%s", path);
 }
 
-// Safety net for the "save disappears after a crash" failure mode: logs
-// (advena_006.log:39-51) confirm the engine's own boot routine reopens
-// s0.dat/s1.dat/s2.dat/g.dat in truncating "w+" mode. That is harmless the
-// first time it creates a missing slot, but if the game is later killed by
-// a Data Abort while one of these files is open (before it can rewrite the
-// full content it just truncated), the previous save is destroyed even
-// though the file itself is still present on disk (now empty). Since the
-// title's own file handles are never cleanly closed on an abrupt kill, the
-// next boot can hit that same truncating path again on a slot that still
-// held a real save. Back up any existing non-empty save file before letting
-// a truncating open destroy it, so the last known-good copy survives under
-// a ".bak" name even if the process dies mid-write.
+/**
+ * @brief Safety net for the "save disappears after a crash" failure mode.
+ * @note See `docs/source/reimpl/io.md:107` for detailed design rationale.
+ */
 static int backup_existing_save_if_present(const char *resolved, char *backup_out, size_t backup_out_len) {
     struct stat st;
     if (stat(resolved, &st) != 0 || st.st_size <= 0) return 0;
@@ -131,17 +115,10 @@ static int backup_existing_save_if_present(const char *resolved, char *backup_ou
     return 0;
 }
 
-// Confirmed on-console (advena_028.log:138-161): the engine's own truncating
-// "w+" open on a save file (via MC_fsOpen/MC_fsWrite, see
-// CSaveMgr::SavePlayData -> CGsEncryptFile::SaveEnd -> CGsFile::Save) can
-// leave the file at 0 bytes -- the very next LoadBegin on that same slot
-// reads GsFSFileSize()==0 and CGsEncryptFile::ReadPtr's NULL-buffer guard
-// fires, proving the write never actually landed. This happens with NO
-// crash involved, so the backup above is necessary but not sufficient: the
-// player is left with an empty slot until someone notices the ".bak" file.
-// Track every truncating open we backed up and, once it's closed, check
-// whether real content actually made it to disk; if the file is still
-// empty, restore the backup automatically instead of leaving the save gone.
+/**
+ * @brief Confirmed on-console (advena_028.log:138-161).
+ * @note See `docs/source/reimpl/io.md:134` for detailed design rationale.
+ */
 #define MAX_TRACKED_SAVE_OPENS 4
 typedef struct {
     FILE *fp;
@@ -162,7 +139,10 @@ static void track_save_open(FILE *fp, const char *resolved, const char *backup) 
     l_warn("[IO] Tracked save-open table full; cannot verify write for '%s'.", resolved);
 }
 
-// Returns the tracked-table index for fp (pre-close bookkeeping), or -1.
+/**
+ * @brief Returns the tracked-table index for fp (pre-close bookkeeping), or -1.
+ * @note See `docs/source/reimpl/io.md:165` for detailed design rationale.
+ */
 static int find_tracked_save(FILE *fp) {
     for (int i = 0; i < MAX_TRACKED_SAVE_OPENS; i++) {
         if (g_tracked_saves[i].fp == fp) return i;
@@ -175,10 +155,10 @@ static void verify_and_recover_save_close(int idx, long pre_close_pos) {
 
     struct stat st;
     int have_stat = (stat(g_tracked_saves[idx].path, &st) == 0);
-    // Diagnostic: always log what we observed, even when it looks fine, so a
-    // future capture can tell "write never happened" (pre_close_pos == 0)
-    // apart from "write happened but didn't persist to storage"
-    // (pre_close_pos > 0 yet the file reads back as 0 right after close).
+    /**
+     * @brief Diagnostic: always log what we observed, even when it looks fine, so a future capture can tell "write never happened" (pre_close_pos == 0).
+     * @note See `docs/source/reimpl/io.md:178` for detailed design rationale.
+     */
     l_info("[IO] Save close check for '%s': ftell()-before-close=%ld bytes, "
            "on-disk size after close=%ld bytes.",
            g_tracked_saves[idx].path, pre_close_pos, have_stat ? (long)st.st_size : -1L);

@@ -1,17 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2023-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
+ * @note See `docs/source/reimpl/errno.md:1` for detailed design rationale.
  */
 
 /**
- * @file  errno.h
- * @brief Error code translation between newlib (Vita) and bionic (Android)
- *
- * Provides wrappers for errno-related functions that translate the underlying
- * error numbers and their corresponding descriptions into Bionic (Android)
- * format, so that the target can perform its error checking normally.
+ * @brief Copyright (C) 2023-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
  */
 
 #ifndef SOLOADER_ERRNO_H

@@ -1,15 +1,10 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2021      Rinnegatamante
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2021 Rinnegatamante Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified.
+ * @note See `docs/source/dynlib.md:1` for detailed design rationale.
  */
 
 /**
- * @file  dynlib.c
- * @brief Resolving dynamic imports of the .so.
+ * @brief Resolving dynamic imports of the .
  */
 
 #include <psp2/kernel/clib.h>
@@ -43,9 +38,10 @@
 #include <libc_bridge/libc_bridge.h>
 #endif
 
-// Bug 16 (PORTING_PLAN.md) diagnostic instrumentation: resolve these 3
-// imports to counting wrappers instead of the real vitaGL functions when
-// enabled. See glutil.c for the counters/report.
+/**
+ * @brief Bug 16 (PORTING_PLAN.md) diagnostic instrumentation.
+ * @note See `docs/source/dynlib.md:46` for detailed design rationale.
+ */
 #ifdef INSTRUMENT_GL_CALLS
 #define GL_DRAW_ARRAYS_IMPL     glDrawArrays_soloader
 #define GL_DRAW_ELEMENTS_IMPL   glDrawElements_soloader
@@ -141,9 +137,10 @@ extern const short *BIONIC_toupper_tab_;
 static FILE __sF_fake[3];
 
 void *dlsym_soloader(void * handle, const char * symbol) {
-    // Usage example:
-    // if (strcmp("AMotionEvent_getAxisValue", symbol) == 0)
-    //    return &AMotionEvent_getAxisValue;
+    /**
+     * @brief Usage example: if (strcmp("AMotionEvent_getAxisValue", symbol) == 0) return &AMotionEvent_getAxisValue.
+     * @note See `docs/source/dynlib.md:144` for detailed design rationale.
+     */
 
     l_error("dlsym: Unknown symbol \"%s\".", symbol);
     return NULL;

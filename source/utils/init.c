@@ -1,10 +1,6 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2021-2022 Rinnegatamante
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2021-2022 Rinnegatamante Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be.
+ * @note See `docs/source/utils/init.md:1` for detailed design rationale.
  */
 
 #include "utils/init.h"
@@ -26,13 +22,16 @@
 #include <so_util/so_util.h>
 #include <fios/fios.h>
 
-// Base address for the Android .so to be loaded at
+/**
+ * @brief Base address for the Android .
+ * @note See `docs/source/utils/init.md:29` for detailed design rationale.
+ */
 #define LOAD_ADDRESS 0x98000000
 
 extern so_module so_mod;
 
 void soloader_init_all() {
-	// Launch `app0:configurator.bin` on `-config` init param
+	/**< @brief Launch `app0:configurator. */
     sceAppUtilInit(&(SceAppUtilInitParam){}, &(SceAppUtilBootParam){});
     SceAppUtilAppEventParam eventParam;
     sceClibMemset(&eventParam, 0, sizeof(SceAppUtilAppEventParam));

@@ -1,17 +1,10 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2022      Rinnegatamante
- * Copyright (C) 2022      GrapheneCt
- * Copyright (C) 2022-2023 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2022 Rinnegatamante Copyright (C) 2022 GrapheneCt Copyright (C) 2022-2023 Volodymyr Atamanenko.
+ * @note See `docs/source/reimpl/pthr.md:1` for detailed design rationale.
  */
 
 /**
- * @file  pthr.h
- * @brief Wrapper for vitasdk/newlib pthread functions to work with
- *        Android's pthread structs which are different
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2022 Rinnegatamante Copyright (C) 2022 GrapheneCt Copyright (C) 2022-2024 Volodymyr Atamanenko.
  */
 
 #ifndef SOLOADER_PTHR_H
@@ -41,7 +34,10 @@ typedef struct {
     pthread_cond_t *real_ptr; // replaces `int volatile value;`
 } pthread_cond_t_bionic;
 
-// pthread_t is same size on bionic and newlib
+/**
+ * @brief pthread_t is same size on bionic and newlib.
+ * @note See `docs/source/reimpl/pthr.md:44` for detailed design rationale.
+ */
 int pthread_create_soloader(pthread_t *thread, const pthread_attr_t_bionic *attr, void *(*start)(void *), void *param);
 int pthread_kill_soloader(pthread_t thread, int sig);
 int pthread_join_soloader(pthread_t thread, void **value_ptr);
@@ -50,15 +46,24 @@ int pthread_equal_soloader(pthread_t t1, pthread_t t2);
 pthread_t pthread_self_soloader();
 int pthread_once_soloader(volatile int *once_control, void (*init_routine)(void));
 
-// pthread_t and sched_param are same size on bionic and newlib
+/**
+ * @brief pthread_t and sched_param are same size on bionic and newlib.
+ * @note See `docs/source/reimpl/pthr.md:53` for detailed design rationale.
+ */
 int pthread_getschedparam_soloader(pthread_t thread, int *policy, struct sched_param *param);
 int pthread_setschedparam_soloader(pthread_t thread, int policy, const struct sched_param *param);
 
-// condattr_t is same size on bionic and newlib
+/**
+ * @brief condattr_t is same size on bionic and newlib.
+ * @note See `docs/source/reimpl/pthr.md:57` for detailed design rationale.
+ */
 int pthread_condattr_init_soloader(pthread_condattr_t *attr);
 int pthread_condattr_destroy_soloader(pthread_condattr_t *attr);
 
-// mutexattr_t is same size on bionic and newlib
+/**
+ * @brief mutexattr_t is same size on bionic and newlib.
+ * @note See `docs/source/reimpl/pthr.md:61` for detailed design rationale.
+ */
 int pthread_mutexattr_init_soloader(pthread_mutexattr_t *attr);
 int pthread_mutexattr_settype_soloader(pthread_mutexattr_t *attr, int type);
 int pthread_mutexattr_destroy_soloader(pthread_mutexattr_t *attr);

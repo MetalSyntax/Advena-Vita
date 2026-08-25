@@ -1,5 +1,6 @@
-/*
- * main.c — Main entry point and game loop for Advena PS Vita port
+/**
+ * @brief main.c — Main entry point and game loop for Advena PS Vita port.
+ * @note See `docs/source/main.md:1` for detailed design rationale.
  */
 
 #include "utils/init.h"
@@ -29,23 +30,16 @@ int _newlib_heap_size_user = 128 * 1024 * 1024;
 int sceLibcHeapSize = 4 * 1024 * 1024;
 #endif
 
-// The process's main thread (the one the .so actually runs game logic and
-// UI construction on -- shows up in crash dumps as thread "ADVENA001",
-// named after the app's own VITA_TITLEID) is created by the SDK's own
-// startup code BEFORE main() runs, using whatever size this global says --
-// NOT the pthread_create_soloader() path in reimpl/pthr.c (that only
-// covers threads the .so spawns itself via pthread_create). Left
-// undeclared, it defaults to a small stack (256KB) that is nowhere near
-// enough for this engine's deep init/UI call chains (e.g.
-// GVUIPlayerController construction -> InitialPlayerPadSet), causing a
-// Data Abort stack overflow confirmed via psp2dmp (fault on a plain
-// stack-store instruction in a function's own prologue).
+/**
+ * @brief The process's main thread (the one the .so actually runs game logic and UI construction on -- shows up in crash dumps as thread).
+ * @note See `docs/source/main.md:32` for detailed design rationale.
+ */
 unsigned int sceUserMainThreadStackSize = 4 * 1024 * 1024;
 
-// Advena native logical UI/canvas resolution: 480x320 (as defined in
-// AdvenaLauncher.java: gameScreenWidth = 480, gameScreenHeight = 320).
-// The software rasterizer renders to this 480x320 buffer, and glResize
-// scales it to fill the Vita's 960x544 screen.
+/**
+ * @brief Advena native logical UI/canvas resolution.
+ * @note See `docs/source/main.md:45` for detailed design rationale.
+ */
 #define GAME_W 480
 #define GAME_H 320
 #define SCREEN_W 960
@@ -59,7 +53,10 @@ unsigned int sceUserMainThreadStackSize = 4 * 1024 * 1024;
 #define EVENT_TOUCH_UP   24
 #define EVENT_TOUCH_MOVE 25
 
-// Directional Movement KeyCodes (Official Nexus2 / Advena Hal KeyCodes)
+/**
+ * @brief Directional Movement KeyCodes (Official Nexus2 / Advena Hal KeyCodes).
+ * @note See `docs/source/main.md:62` for detailed design rationale.
+ */
 #define KEY_WALK_UP         50    // '2' (0x32) -> Walk UP / Ladder UP
 #define KEY_WALK_DOWN       56    // '8' (0x38) -> Walk DOWN / Ladder DOWN
 #define KEY_WALK_LEFT       52    // '4' (0x34) -> Walk LEFT
@@ -97,18 +94,25 @@ static void (* NativeResumeClet)(void *env, void *obj);
 static void (* NativePauseClet)(void *env, void *obj);
 static void (* handleCletEvent)(void *env, void *obj, int type, int p1, int p2, int p3);
 
-/*
- * Virtual Touch Hotspots (in 480x320 native design coordinates)
+/**
+ * @brief Virtual Touch Hotspots (in 480x320 native design coordinates).
+ * @note See `docs/source/main.md:100` for detailed design rationale.
  */
 #define DPAD_CENTER_X     72
 #define DPAD_CENTER_Y     233
 #define DPAD_RADIUS       50
 
-// Left Teamstrike / Quest / Target / "!" button (Button 0 in GVUIPlayerController)
+/**
+ * @brief Left Teamstrike / Quest / Target / ".
+ * @note See `docs/source/main.md:107` for detailed design rationale.
+ */
 #define BTN_TARGET_X      29
 #define BTN_TARGET_Y      128
 
-// Right Character Switch Cycle button (Button 1 in GVUIPlayerController)
+/**
+ * @brief Right Character Switch Cycle button (Button 1 in GVUIPlayerController).
+ * @note See `docs/source/main.md:111` for detailed design rationale.
+ */
 #define BTN_CHAR_SWITCH_X 428
 #define BTN_CHAR_SWITCH_Y 169
 
@@ -153,7 +157,10 @@ typedef struct {
     const char *name;
 } TouchState;
 
-// Dedicated Pointer IDs for each virtual button (1 to 12)
+/**
+ * @brief Dedicated Pointer IDs for each virtual button (1 to 12).
+ * @note See `docs/source/main.md:156` for detailed design rationale.
+ */
 static TouchState g_dpad_touch        = {0, 0, 0, 1, "D-Pad"};
 static TouchState g_btn_attack        = {0, BTN_ATTACK_X, BTN_ATTACK_Y, 2, "Attack"};
 static TouchState g_btn_jump_left     = {0, BTN_JUMP_LEFT_X, BTN_JUMP_LEFT_Y, 3, "Jump Left"};
@@ -251,15 +258,10 @@ int main() {
     l_info("Initializing OpenGL (%dx%d)...", SCREEN_W, SCREEN_H);
     gl_init(SCREEN_W, SCREEN_H);
 
-    // Pin the main thread (render + game logic, single NativeRender() tick
-    // per loop iteration) to its own core so the scheduler never migrates it
-    // between cores while the audio mixer (audio.c, see audio_init) runs
-    // fixed on a different one. The 3 user cores available are
-    // SCE_KERNEL_CPU_MASK_USER_0/1/2 (the 4th is reserved by the system).
-    // Unconditional, no build flag gate -- same criterion as the CPU/GPU/bus
-    // clock boost above, not a risky experiment. Technique validated on real
-    // hardware in the sibling Zenonia 4 port (same Gamevil Nexus2/GxPZx
-    // engine family).
+    /**
+     * @brief Pin the main thread (render + game logic, single NativeRender() tick per loop iteration) to its own core so the scheduler never migrates it.
+     * @note See `docs/source/main.md:254` for detailed design rationale.
+     */
     int main_thread_id = sceKernelGetThreadId();
     int affinity_res = sceKernelChangeThreadCpuAffinityMask(main_thread_id, SCE_KERNEL_CPU_MASK_USER_0);
     l_info("[PERF] CPU affinity: main thread (0x%08x) -> core 0 (res=0x%08x)", main_thread_id, affinity_res);
@@ -268,10 +270,10 @@ int main() {
     l_info("Initializing audio subsystem...");
     audio_init();
 
-    // Native initialization (400x240 native UI/logical canvas, 960x544 Vita display).
-    // This matches the config used since the very first working commit
-    // (26074c4) -- confirmed by diffing against it -- so it is not the
-    // source of the crop/zoom regression (see GAME_W/GAME_H comment above).
+    /**
+     * @brief Native initialization (400x240 native UI/logical canvas, 960x544 Vita display).
+     * @note See `docs/source/main.md:271` for detailed design rationale.
+     */
     if (NativeInitWithBufferSize) {
         l_info("Calling NativeInitWithBufferSize(%d, %d)...", ENGINE_LOGICAL_W, ENGINE_LOGICAL_H);
         NativeInitWithBufferSize(&jni, NULL, ENGINE_LOGICAL_W, ENGINE_LOGICAL_H);
@@ -287,7 +289,10 @@ int main() {
         NativeResize(&jni, NULL, SCREEN_W, SCREEN_H);
     }
 
-    // Language configuration: English (1)
+    /**
+     * @brief Language configuration.
+     * @note See `docs/source/main.md:290` for detailed design rationale.
+     */
     if (handleCletEvent) {
         l_info("Configuring language to English (GET_LANGUAGE = 1)...");
         handleCletEvent(&jni, NULL, 5001, 1, 0, 0); // GET_LANGUAGE = 1 (English)
@@ -304,7 +309,10 @@ int main() {
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
 
-    // Hardware touch slot tracker (max 5 slots)
+    /**
+     * @brief Hardware touch slot tracker (max 5 slots).
+     * @note See `docs/source/main.md:307` for detailed design rationale.
+     */
     #define MAX_TOUCH_SLOTS 5
     int last_touch_x[MAX_TOUCH_SLOTS] = {-1, -1, -1, -1, -1};
     int last_touch_y[MAX_TOUCH_SLOTS] = {-1, -1, -1, -1, -1};
@@ -318,7 +326,7 @@ int main() {
     SceTouchData touch_data;
 
     while (1) {
-        // 1. Handle Physical Touch Screen Input (with stable slot tracking)
+        /**< @brief 1. Handle Physical Touch Screen Input (with stable slot tracking). */
         sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch_data, 1);
         int seen[MAX_TOUCH_SLOTS] = {0};
 
@@ -364,11 +372,11 @@ int main() {
             }
         }
 
-        // 2. Handle Physical Buttons & Analog Sticks
+        /**< @brief 2. Handle Physical Buttons & Analog Sticks. */
         SceCtrlData pad;
         sceCtrlPeekBufferPositive(0, &pad, 1);
 
-        // Directional handling (D-Pad & Left Stick -> Send Walk KeyCodes 50, 56, 52, 54)
+        /**< @brief Directional handling (D-Pad & Left Stick -> Send Walk KeyCodes 50, 56, 52, 54). */
         int up_pressed    = (pad.buttons & SCE_CTRL_UP)    || (pad.ly < 64);
         int down_pressed  = (pad.buttons & SCE_CTRL_DOWN)  || (pad.ly > 192);
         int left_pressed  = (pad.buttons & SCE_CTRL_LEFT)  || (pad.lx < 64);
@@ -411,7 +419,7 @@ int main() {
         old_left  = left_pressed;
         old_right = right_pressed;
 
-        // Cross (X) -> Attack / NPC Talk / Action / Confirm (Key 53)
+        /**< @brief Cross (X) -> Attack / NPC Talk / Action / Confirm (Key 53). */
         int cross_down = (pad.buttons & SCE_CTRL_CROSS) != 0;
         if (cross_down && !old_cross) {
             l_info("[CTRL] CROSS (X) DOWN -> Attack / Action (Key %d)", KEY_ATTACK);
@@ -422,7 +430,7 @@ int main() {
         }
         old_cross = cross_down;
 
-        // Circle (O) -> Right / Forward Jump in battle (Key -4)
+        /**< @brief Circle (O) -> Right / Forward Jump in battle (Key -4). */
         int circle_down = (pad.buttons & SCE_CTRL_CIRCLE) != 0;
         if (circle_down && !old_circle) {
             l_info("[CTRL] CIRCLE (O) DOWN -> Right Jump (Key %d)", KEY_JUMP_RIGHT);
@@ -433,7 +441,7 @@ int main() {
         }
         old_circle = circle_down;
 
-        // Triangle (Δ) -> Left / Backward Jump in battle (Key -3)
+        /**< @brief Triangle (Δ) -> Left / Backward Jump in battle (Key -3). */
         int triangle_down = (pad.buttons & SCE_CTRL_TRIANGLE) != 0;
         if (triangle_down && !old_triangle) {
             l_info("[CTRL] TRIANGLE (Δ) DOWN -> Left Jump (Key %d)", KEY_JUMP_LEFT);
@@ -444,13 +452,13 @@ int main() {
         }
         old_triangle = triangle_down;
 
-        // Right Stick: Quick cast skills 1, 2, 3, 4
+        /**< @brief Right Stick: Quick cast skills 1, 2, 3, 4. */
         int rstick_left  = (pad.rx < 64);
         int rstick_up    = (pad.ry < 64);
         int rstick_down  = (pad.ry > 192);
         int rstick_right = (pad.rx > 192);
 
-        // Square (□) / Right Stick Left -> Skill 1 (Key -13)
+        /**< @brief Square (□) / Right Stick Left -> Skill 1 (Key -13). */
         int square_down = (pad.buttons & SCE_CTRL_SQUARE) != 0;
         int skill1_down = square_down || rstick_left;
         if (skill1_down && !old_square && !old_rstick_left) {
@@ -490,7 +498,7 @@ int main() {
         }
         old_rstick_right = rstick_right;
 
-        // L1 Trigger -> Teamstrike (T Button) (Key 48)
+        /**< @brief L1 Trigger -> Teamstrike (T Button) (Key 48). */
         int l1_down = (pad.buttons & SCE_CTRL_L1) != 0;
         if (l1_down && !old_l1) {
             l_info("[CTRL] L1 TRIGGER DOWN -> Teamstrike [T] (Key %d)", KEY_TEAMSTRIKE);
@@ -501,7 +509,7 @@ int main() {
         }
         old_l1 = l1_down;
 
-        // R1 Trigger -> Character Tag / Swap (Key -12)
+        /**< @brief R1 Trigger -> Character Tag / Swap (Key -12). */
         int r1_down = (pad.buttons & SCE_CTRL_R1) != 0;
         if (r1_down && !old_r1) {
             l_info("[CTRL] R1 TRIGGER DOWN -> Character Tag (Key %d)", KEY_CHAR_SWITCH);
@@ -512,7 +520,7 @@ int main() {
         }
         old_r1 = r1_down;
 
-        // Select -> Cancel / Back / Inventory in menus (-16)
+        /**< @brief Select -> Cancel / Back / Inventory in menus (-16). */
         int select_down = (pad.buttons & SCE_CTRL_SELECT) != 0;
         if (select_down && !old_select) {
             l_info("[CTRL] SELECT DOWN -> Back / Menu (Key %d)", KEY_MENU_BACK);
@@ -540,18 +548,10 @@ int main() {
         }
 
         gl_swap();
-        // No explicit sceDisplayWaitVblankStartMulti() here: vglSwapBuffers()
-        // (in gl_swap, glutil.c) already performs the display flip/vblank
-        // sync internally. A second, unconditional 2-vblank wait stacked on
-        // top of that was capping every frame at ~33.3ms (30 FPS) regardless
-        // of how fast the frame actually rendered -- e.g. a 17ms frame still
-        // paid the full 33.3ms wait, landing at 20 FPS instead of the ~50 FPS
-        // it could have sustained. Removing it lets light scenes (menus,
-        // simple maps) run up to the panel's native 60Hz; it does not change
-        // heavy combat scenes that are already GL-bound below 30 FPS (see
-        // PORTING_PLAN.md Bug 16 -- that bottleneck is draw-call/state-change
-        // volume, unrelated to this pacing wait, and is still pending the
-        // glDrawArrays/glDrawElements/glBindTexture instrumentation below).
+        /**
+         * @brief No explicit sceDisplayWaitVblankStartMulti() here.
+         * @note See `docs/source/main.md:543` for detailed design rationale.
+         */
 #ifdef INSTRUMENT_GL_CALLS
         gl_instrument_frame_end();
 #endif

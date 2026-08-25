@@ -1,5 +1,6 @@
-/*
- * font.c — stb_truetype rasterizer for Gamevil Font API (GFA)
+/**
+ * @brief font.c — stb_truetype rasterizer for Gamevil Font API (GFA).
+ * @note See `docs/source/font.md:1` for detailed design rationale.
  */
 
 #include <stdio.h>

@@ -1,16 +1,10 @@
-/*
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
+ * @note See `docs/source/reimpl/bits/_struct_converters.md:1` for detailed design rationale.
  */
 
 /**
- * @file  _struct_converters.c
- * @brief Converters for `dirent` struct, `stat` struct, and `open()` flags
- *        that deal with newlib (Vita) and bionic (Android) incompatibilities.
- *
- * This file has to be `#include`d in `reimpl/io.c` and not compiled on its own.
+ * @brief Converters for `dirent` struct, `stat` struct, and `open()` flags.
  */
 
 #define SC_INLINE static inline __attribute__((always_inline))
@@ -27,11 +21,8 @@
 #define BIONIC_O_TMPFILE   (BIONIC__O_TMPFILE | BIONIC_O_DIRECTORY)
 
 /**
- * Convert bionic (Android) `open()` flags to newlib (Vita) flags
- *
- * @param[in] flags open() flags created using musl defines
- *
- * @return open(flags) recreated using newlib defines
+ * @brief Convert bionic (Android) `open()` flags to newlib (Vita) flags @param[in] flags open() flags created using musl defines @return open(flags).
+ * @note See `docs/source/reimpl/bits/_struct_converters.md:29` for detailed design rationale.
  */
 SC_INLINE int oflags_bionic_to_newlib(int flags) {
     int out = 0;
@@ -55,12 +46,8 @@ SC_INLINE int oflags_bionic_to_newlib(int flags) {
 }
 
 /**
- * Convert newlib (Vita) `dirent` struct to bionic (Android) format.
- *
- * @param[in] dirent_newlib Pointer to a newlib-format dirent struct
- *
- * @return Pointer to a bionic-format dirent struct.
- *         Must be freed by the caller.
+ * @brief Convert newlib (Vita) `dirent` struct to bionic (Android) format.
+ * @note See `docs/source/reimpl/bits/_struct_converters.md:57` for detailed design rationale.
  */
 SC_INLINE
 dirent64_bionic * dirent_newlib_to_bionic(const struct dirent* dirent_newlib) {
@@ -73,9 +60,8 @@ dirent64_bionic * dirent_newlib_to_bionic(const struct dirent* dirent_newlib) {
 }
 
 /**
- * Convert newlib (Vita) `stat` struct to bionic (Android) format.
- * @param[in]  src Pointer to a newlib-format stat struct
- * @param[out] dst Pointer to a bionic-format stat struct
+ * @brief Convert newlib (Vita) `stat` struct to bionic (Android) format.
+ * @note See `docs/source/reimpl/bits/_struct_converters.md:75` for detailed design rationale.
  */
 SC_INLINE
 void stat_newlib_to_bionic(const struct stat * src, stat64_bionic * dst) {

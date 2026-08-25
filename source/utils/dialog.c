@@ -1,10 +1,6 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2021      fgsfds
- * Copyright (C) 2022-2023 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2021 fgsfds Copyright (C) 2022-2023 Volodymyr Atamanenko This software may be modified and.
+ * @note See `docs/source/utils/dialog.md:1` for detailed design rationale.
  */
 
 #include "utils/dialog.h"
@@ -95,7 +91,10 @@ char *get_ime_dialog_result(void) {
     if (result.button == SCE_IME_DIALOG_BUTTON_ENTER)
         _utf16_to_utf8(ime_input_text_utf16, ime_input_text_utf8);
     sceImeDialogTerm();
-    // For some reason analog stick stops working after ime
+    /**
+     * @brief For some reason analog stick stops working after ime.
+     * @note See `docs/source/utils/dialog.md:98` for detailed design rationale.
+     */
     sceCtrlSetSamplingModeExt(SCE_CTRL_MODE_ANALOG_WIDE);
 
     return (char *)ime_input_text_utf8;

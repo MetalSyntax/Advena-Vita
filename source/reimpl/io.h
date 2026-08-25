@@ -1,15 +1,10 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2022      Rinnegatamante
- * Copyright (C) 2022-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2022 Rinnegatamante Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified.
+ * @note See `docs/source/reimpl/io.md:1` for detailed design rationale.
  */
 
 /**
- * @file  io.h
- * @brief Wrappers and implementations for some of the IO functions.
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2022 Rinnegatamante Copyright (C) 2022-2024 Volodymyr Atamanenko This software may be modified.
  */
 
 #ifndef SOLOADER_IO_H

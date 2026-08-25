@@ -1,8 +1,6 @@
-/*
- * Copyright (C) 2023-2024 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2023-2024 Volodymyr Atamanenko This software may be modified and distributed under the terms of the MIT license.
+ * @note See `docs/source/reimpl/errno.md:1` for detailed design rationale.
  */
 
 #include "reimpl/errno.h"
@@ -67,7 +65,10 @@ static newlib_errno_to_bionic_errno errno_translation[] = {
 	{ EPROTO, EPROTO_BIONIC, "Protocol error" },
 	{ EMULTIHOP, EMULTIHOP_BIONIC, "Multihop attempted" },
 	{ EBADMSG, EBADMSG_BIONIC, "Not a data message" },
-	// { EFTYPE, 0, "" }, // EFTYPE is only for newlib internal usage
+	/**
+	 * @brief { EFTYPE, 0, "" }, // EFTYPE is only for newlib internal usage.
+	 * @note See `docs/source/reimpl/errno.md:70` for detailed design rationale.
+	 */
 	{ ENOSYS, ENOSYS_BIONIC, "Function not implemented" },
 	{ ENOTEMPTY, ENOTEMPTY_BIONIC, "Directory not empty" },
 	{ ENAMETOOLONG, ENAMETOOLONG_BIONIC, "File name too long" },

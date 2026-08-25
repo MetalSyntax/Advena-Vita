@@ -1,10 +1,6 @@
-/*
- * Copyright (C) 2021      Andy Nguyen
- * Copyright (C) 2022      Rinnegatamante
- * Copyright (C) 2022-2023 Volodymyr Atamanenko
- *
- * This software may be modified and distributed under the terms
- * of the MIT license. See the LICENSE file for details.
+/**
+ * @brief Copyright (C) 2021 Andy Nguyen Copyright (C) 2022 Rinnegatamante Copyright (C) 2022-2023 Volodymyr Atamanenko This software may be modified.
+ * @note See `docs/source/reimpl/sys.md:1` for detailed design rationale.
  */
 
 #include "reimpl/sys.h"
@@ -34,7 +30,10 @@
 #define BIONIC_CLOCK_SGI_CYCLE         10
 #define BIONIC_CLOCK_TAI               11
 
-// 1969 years in microseconds, used to adjust SCE tick to UNIX timestamp
+/**
+ * @brief 1969 years in microseconds, used to adjust SCE tick to UNIX timestamp.
+ * @note See `docs/source/reimpl/sys.md:37` for detailed design rationale.
+ */
 #define __epoch 62135587294000000
 
 int clock_gettime_soloader(clockid_t clock_id, struct timespec * tp) {
@@ -132,7 +131,10 @@ int __atomic_swap(int new_value, volatile int *ptr) {
 }
 
 int __atomic_cmpxchg(int old_value, int new_value, volatile int* ptr) {
-    /* We must return 0 on success */
+    /**
+     * @brief We must return 0 on success.
+     * @note See `docs/source/reimpl/sys.md:135` for detailed design rationale.
+     */
     return __sync_val_compare_and_swap(ptr, old_value, new_value) != old_value;
 }
 
