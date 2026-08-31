@@ -86,12 +86,43 @@ endif()
 # guard/crash-fix hook -- the original machine code never runs again) with a
 # recompiled equivalent, to fix the original armeabi/Thumb-1 build spilling
 # its opaque-run pixel counter to the stack every iteration instead of
-# keeping it in a register. This is a genuine rendering-behavior change and
-# needs on-console visual verification (no corrupted sprites) before it's
-# trusted -- off by default until confirmed.
-option(OPT_COPY_BLIT_REWRITE "Replace DrawOP_COPY_Compress_16 with a faster equivalent (needs visual verification)" OFF)
+# keeping it in a register. Confirmed on real hardware (6th perf pass):
+# faster outside combat, no visual corruption reported in normal play,
+# menus and combat -- ON by default. Bosses/cutscenes/other maps still lack
+# exhaustive coverage; flip to OFF here if a future session finds corruption.
+option(OPT_COPY_BLIT_REWRITE "Replace DrawOP_COPY_Compress_16 with a faster equivalent" ON)
 if (OPT_COPY_BLIT_REWRITE)
   add_definitions(-DOPT_COPY_BLIT_REWRITE)
+endif()
+
+# Bug 16 (PORTING_PLAN.md) 7th perf pass: next-highest-ROI blit ops after
+# COPY (DARKEN 6.2%, BLEND16 5.7%, ADD 4.8% of all sprite blits per the 5th
+# pass histogram). DARKEN and ADD are full replacements (same Thumb-1
+# stack-spill fix as COPY, no lookup tables, byte-exact against the
+# decompiled pseudo-C). BLEND16 is only a PARTIAL fix -- it fast-paths the
+# alpha==8 (50/50) case and falls back to the untouched original for every
+# other alpha, because the general-alpha path depends on two lookup tables
+# in the .so's rodata whose values could not be safely recovered from the
+# ELF (see source/patch.c). NOT yet verified visually on real hardware --
+# off by default until confirmed, same discipline OPT_COPY_BLIT_REWRITE
+# followed before it was turned on.
+option(OPT_MORE_BLIT_REWRITE "Replace DrawOP_DARKEN/ADD_Compress_16 and fast-path DrawOP_BLEND16_Compress_16's alpha==8 case (needs visual verification)" ON)
+if (OPT_MORE_BLIT_REWRITE)
+  add_definitions(-DOPT_MORE_BLIT_REWRITE)
+endif()
+
+# Bug 16 (PORTING_PLAN.md) 7th perf pass, follow-up: DrawOP_BLEND16_Compress_16's
+# general-alpha path (every alpha except the already-handled 8) depends on
+# two lookup tables in the .so's rodata whose real byte values couldn't be
+# safely recovered from the static ELF file (see the comment in
+# source/patch.c above DrawOP_BLEND16_Compress_16_patched). This flag dumps
+# those tables' real bytes, read directly from the running process's own
+# mapped memory (so_mod.text_base + the known offsets), to game_log() the
+# first time gameplay hits a non-8 alpha -- no guessing, no need for a
+# separate gdbstub. Diagnostic only, off by default.
+option(INSTRUMENT_BLEND16_TABLES "Dump DrawOP_BLEND16_Compress_16's lookup tables to the log on first non-8 alpha use" OFF)
+if (INSTRUMENT_BLEND16_TABLES)
+  add_definitions(-DINSTRUMENT_BLEND16_TABLES)
 endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")

@@ -381,6 +381,221 @@ static void DrawOP_COPY_Compress_16_rewrite(unsigned short *dst, unsigned char *
 static so_hook DrawOP_COPY_Compress_16_hook;
 #endif
 
+// ---------------------------------------------------------------------------
+// Perf fix (Bug 16, PORTING_PLAN.md, 7th pass): DrawOP_DARKEN_Compress_16
+// and DrawOP_ADD_Compress_16 (full replacement, same rationale/risk as
+// DrawOP_COPY_Compress_16 above -- same compiler, same armeabi/Thumb-1
+// stack-spill pattern, same fix of just recompiling the identical algorithm
+// at this project's existing -O3 -mcpu=cortex-a9 flags), plus a partial fix
+// for DrawOP_BLEND16_Compress_16 (see the comment above that one below).
+// Real offsets confirmed via `nm -D` on the real .so (all three are
+// exported symbols, same as PutCompressImg/DrawOP_COPY_Compress_16 already
+// were): DrawOP_DARKEN_Compress_16 = 0x13d888, DrawOP_ADD_Compress_16 =
+// 0x13cf0c, DrawOP_BLEND16_Compress_16 = 0x13d388. Per the 5th-pass
+// histogram these three ops are ~16.7% of all sprite blits in combat
+// (DARKEN 6.2%, BLEND16 5.7%, ADD 4.8%), the next-highest ROI after COPY's
+// ~79%. Gated behind its own flag (OPT_MORE_BLIT_REWRITE, default OFF,
+// same discipline as OPT_COPY_BLIT_REWRITE before its own hardware
+// verification) until confirmed visually on real hardware.
+#ifdef OPT_MORE_BLIT_REWRITE
+// DrawOP_DARKEN_Compress_16: per-channel min(dst, src) -- no alpha
+// parameter, no lookup tables, byte-exact against
+// out_ghidra.c:256313-256385.
+static void DrawOP_DARKEN_Compress_16_rewrite(unsigned short *dst, unsigned char *src,
+                                               unsigned short *palette, int stride) {
+    unsigned char *p = src;
+    if ((short)((unsigned int)src[0] | ((unsigned int)src[1] << 8)) == -5) {
+        p = src + 10;
+    }
+
+    for (;;) {
+        unsigned int token = (unsigned int)p[0] | ((unsigned int)p[1] << 8);
+        if (token == 0xFFFF) {
+            return;
+        }
+        p += 2;
+        if (token == 0xFFFE) {
+            dst += stride;
+        } else if (token & 0x8000) {
+            unsigned int count = token & 0x7FFF;
+            for (unsigned int i = 0; i < count; i++) {
+                unsigned int d = *dst;
+                unsigned int s = palette[*p++];
+                unsigned int r = (s & 0xf800) < (d & 0xf800) ? (s & 0xf800) : (d & 0xf800);
+                unsigned int g = (s & 0x7e0) < (d & 0x7e0) ? (s & 0x7e0) : (d & 0x7e0);
+                unsigned int b = (s & 0x1f) < (d & 0x1f) ? (s & 0x1f) : (d & 0x1f);
+                *dst++ = (unsigned short)(r | g | b);
+            }
+        } else {
+            dst += token;
+        }
+    }
+}
+static so_hook DrawOP_DARKEN_Compress_16_hook;
+
+// DrawOP_ADD_Compress_16: per-channel saturating add, weighted by `alpha`
+// (0 < alpha < 0x100; alpha == 0xff is a pure unweighted saturating add,
+// any other value scales the source contribution by alpha/256 before
+// adding). No lookup tables -- byte-exact against
+// out_ghidra.c:255717-255849.
+static void DrawOP_ADD_Compress_16_rewrite(unsigned short *dst, unsigned char *src,
+                                            unsigned short *palette, int stride, int alpha) {
+    if (alpha <= 0 || alpha >= 0x100) {
+        return;
+    }
+
+    unsigned char *p = src;
+    if ((short)((unsigned int)src[0] | ((unsigned int)src[1] << 8)) == -5) {
+        p = src + 10;
+    }
+
+    for (;;) {
+        unsigned int token = (unsigned int)p[0] | ((unsigned int)p[1] << 8);
+        if (token == 0xFFFF) {
+            return;
+        }
+        p += 2;
+        if (token == 0xFFFE) {
+            dst += stride;
+        } else if (token & 0x8000) {
+            unsigned int count = token & 0x7FFF;
+            if (alpha == 0xff) {
+                for (unsigned int i = 0; i < count; i++) {
+                    unsigned int s = palette[*p++];
+                    unsigned int d = *dst;
+                    unsigned int b = (s & 0x1f) + (d & 0x1f);
+                    if (b > 0x1f) b = 0x1f;
+                    unsigned int g = (s & 0x7e0) + (d & 0x7e0);
+                    if (g > 0x7e0) g = 0x7e0;
+                    unsigned int r = (s >> 11) + (d >> 11);
+                    if (r > 0x1f) r = 0x1f;
+                    *dst++ = (unsigned short)(g | b | (r << 11));
+                }
+            } else {
+                for (unsigned int i = 0; i < count; i++) {
+                    unsigned int s = palette[*p++];
+                    unsigned int d = *dst;
+                    int r = (((int)(s >> 11) * alpha) >> 8) + (int)(d >> 11);
+                    if (r > 0x1f) r = 0x1f;
+                    int b = (((int)(s & 0x1f) * alpha) >> 8) + (int)(d & 0x1f);
+                    if (b > 0x1f) b = 0x1f;
+                    int g = (((int)((s >> 5) & 0x3f) * alpha) >> 8) + (int)((d >> 5) & 0x3f);
+                    if (g > 0x3f) g = 0x3f;
+                    *dst++ = (unsigned short)(b | (r << 11) | (g << 5));
+                }
+            }
+        } else {
+            dst += token;
+        }
+    }
+}
+static so_hook DrawOP_ADD_Compress_16_hook;
+
+// DrawOP_BLEND16_Compress_16: PARTIAL fix, unlike the two above. The
+// original (out_ghidra.c:256027-256149) has two paths: alpha == 8 (the
+// 50/50 midpoint of its 1-15 range) uses a simple mask-and-shift average
+// trick with no lookup tables (byte-exact below); every OTHER alpha value
+// (1-7, 9-15) reads two precomputed tables in the .so's rodata
+// (`DAT_00175d90`, 16 bytes/level of channel masks, and `DAT_00175e80`, 8
+// bytes/level of shift amounts) to do a per-channel weighted blend without
+// the alpha==8 shortcut. Those table VALUES could not be safely recovered
+// from the ELF (the referenced range 0x175d90 falls in a gap between this
+// .so's two PT_LOAD segments in the file layout actually shipped, so a
+// direct file-offset dump is not trustworthy) -- guessing an
+// "equivalent" formula instead of the real table would risk silently
+// wrong blend colors on whatever alpha levels are wrong, which is worse
+// than leaving that path at its original (slower but correct) speed. So
+// this hook only fast-paths the alpha==8 case (a real, common case per
+// the 5th-pass histogram: BLEND16 is used for many hit-flash/highlight
+// effects, which are plausibly implemented as a flat 50% blend) and
+// restore-call-repatches into the untouched original for every other
+// alpha, exactly like the guard-style hooks elsewhere in this file (e.g.
+// CSaveMgr_Save_patched) -- NOT a full replacement like COPY/DARKEN/ADD
+// above.
+typedef void (*fn_DrawOP_BLEND16_Compress_16)(unsigned short *, unsigned char *,
+                                               unsigned short *, int, int);
+static so_hook DrawOP_BLEND16_Compress_16_hook;
+
+#ifdef INSTRUMENT_BLEND16_TABLES
+/**
+ * @brief Dumps the real bytes of DrawOP_BLEND16_Compress_16's two lookup
+ * tables (out_ghidra.c's `DAT_00175d90`/`DAT_00175e80`) straight from this
+ * process's own mapped memory the first time gameplay hits a non-8 alpha,
+ * instead of guessing from the static ELF file (see the comment block
+ * above this function for why that was unsafe). `so_mod.text_base` is the
+ * same runtime base every other hook in this file already uses, so this is
+ * exactly the memory the running .so itself dereferences -- no gdbstub
+ * needed. 15 levels (alpha 1-15, level 7 unused since alpha==8 has its own
+ * fast path): 8 ushort masks (16 bytes) + 8 byte shifts (8 bytes) each.
+ */
+static void dump_blend16_tables_once(void) {
+    static int dumped = 0;
+    if (dumped) {
+        return;
+    }
+    dumped = 1;
+
+    const unsigned short *masks = (const unsigned short *)(so_mod.text_base + 0x175d90);
+    const unsigned char *shifts = (const unsigned char *)(so_mod.text_base + 0x175e80);
+    l_info("[Patch] DrawOP_BLEND16_Compress_16 tables dump (level = alpha-1, level 7 unused):");
+    for (int level = 0; level < 15; level++) {
+        const unsigned short *m = masks + level * 8;
+        const unsigned char *s = shifts + level * 8;
+        l_info("[Patch]   level=%d masks=%04x,%04x,%04x,%04x,%04x,%04x,%04x,%04x shifts=%u,%u,%u,%u,%u,%u,%u,%u",
+               level, m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7],
+               s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7]);
+    }
+}
+#endif
+
+static void DrawOP_BLEND16_Compress_16_patched(unsigned short *dst, unsigned char *src,
+                                                unsigned short *palette, int stride, int alpha) {
+    if (alpha != 8) {
+#ifdef INSTRUMENT_BLEND16_TABLES
+        dump_blend16_tables_once();
+#endif
+        kuKernelCpuUnrestrictedMemcpy((void *)DrawOP_BLEND16_Compress_16_hook.addr,
+                                      DrawOP_BLEND16_Compress_16_hook.orig_instr,
+                                      sizeof(DrawOP_BLEND16_Compress_16_hook.orig_instr));
+        kuKernelFlushCaches((void *)DrawOP_BLEND16_Compress_16_hook.addr,
+                            sizeof(DrawOP_BLEND16_Compress_16_hook.orig_instr));
+        ((fn_DrawOP_BLEND16_Compress_16)DrawOP_BLEND16_Compress_16_hook.thumb_addr)(
+            dst, src, palette, stride, alpha);
+        kuKernelCpuUnrestrictedMemcpy((void *)DrawOP_BLEND16_Compress_16_hook.addr,
+                                      DrawOP_BLEND16_Compress_16_hook.patch_instr,
+                                      sizeof(DrawOP_BLEND16_Compress_16_hook.patch_instr));
+        kuKernelFlushCaches((void *)DrawOP_BLEND16_Compress_16_hook.addr,
+                            sizeof(DrawOP_BLEND16_Compress_16_hook.patch_instr));
+        return;
+    }
+
+    unsigned char *p = src;
+    if ((short)((unsigned int)src[0] | ((unsigned int)src[1] << 8)) == -5) {
+        p = src + 10;
+    }
+
+    for (;;) {
+        unsigned int token = (unsigned int)p[0] | ((unsigned int)p[1] << 8);
+        if (token == 0xFFFF) {
+            return;
+        }
+        p += 2;
+        if (token == 0xFFFE) {
+            dst += stride;
+        } else if (token & 0x8000) {
+            unsigned int count = token & 0x7FFF;
+            for (unsigned int i = 0; i < count; i++) {
+                unsigned short d = *dst;
+                unsigned short s = palette[*p++];
+                *dst++ = (unsigned short)(((d & 0xf7de) >> 1) + ((s & 0xf7de) >> 1));
+            }
+        } else {
+            dst += token;
+        }
+    }
+}
+#endif
+
 void so_patch(void) {
     static int patches_applied = 0;
     if (patches_applied) {
@@ -477,5 +692,28 @@ void so_patch(void) {
     DrawOP_COPY_Compress_16_hook = hook_thumb(so_mod.text_base + 0x142588 + 1,
                                               (uintptr_t)DrawOP_COPY_Compress_16_rewrite);
     l_info("[Patch] Replaced DrawOP_COPY_Compress_16 with a faster equivalent (Bug 16, needs visual verification).");
+#endif
+
+#ifdef OPT_MORE_BLIT_REWRITE
+    // 13. Replace DrawOP_DARKEN_Compress_16 at offset 0x13d888 (7th perf
+    // pass, see the comment block above this function): full replacement,
+    // same as DrawOP_COPY_Compress_16 -- no restore-call-repatch dance.
+    DrawOP_DARKEN_Compress_16_hook = hook_thumb(so_mod.text_base + 0x13d888 + 1,
+                                                (uintptr_t)DrawOP_DARKEN_Compress_16_rewrite);
+    l_info("[Patch] Replaced DrawOP_DARKEN_Compress_16 with a faster equivalent (Bug 16, needs visual verification).");
+
+    // 14. Replace DrawOP_ADD_Compress_16 at offset 0x13cf0c (7th perf pass):
+    // full replacement, same as above.
+    DrawOP_ADD_Compress_16_hook = hook_thumb(so_mod.text_base + 0x13cf0c + 1,
+                                             (uintptr_t)DrawOP_ADD_Compress_16_rewrite);
+    l_info("[Patch] Replaced DrawOP_ADD_Compress_16 with a faster equivalent (Bug 16, needs visual verification).");
+
+    // 15. Guard-hook DrawOP_BLEND16_Compress_16 at offset 0x13d388 (7th
+    // perf pass): PARTIAL fix, only fast-paths alpha==8 and falls back to
+    // the untouched original for every other alpha (see the comment block
+    // above this function for why).
+    DrawOP_BLEND16_Compress_16_hook = hook_thumb(so_mod.text_base + 0x13d388 + 1,
+                                                 (uintptr_t)DrawOP_BLEND16_Compress_16_patched);
+    l_info("[Patch] Hooked DrawOP_BLEND16_Compress_16 to fast-path the alpha==8 case (Bug 16, needs visual verification).");
 #endif
 }
