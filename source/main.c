@@ -310,13 +310,24 @@ int main() {
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
 
     /**
-     * @brief Hardware touch slot tracker (max 5 slots).
-     * @note See `docs/source/main.md:307` for detailed design rationale.
+     * @brief Hardware touch slot tracker (max 5 slots), forwarding only ONE "primary" touch to
+     * the engine at a time.
+     * @note The native touch dispatch (handleCletEvent event types 23/24/25, out_ghidra.c:231038)
+     * funnels every touch into a SINGLE global pointer-position struct and always notifies one
+     * fixed event target -- it has no per-finger/pointer-id tracking at all, matching Android's
+     * original single-touch design for this UI queue. Forwarding more than one simultaneous
+     * hardware contact (e.g. a resting palm/thumb near a screen corner while holding the console,
+     * right where corner UI elements like the dialogue Skip button sit) stomps that single global
+     * position mid-gesture and can silently eat a genuine tap. Only the most recently started
+     * touch is forwarded as "primary"; any other simultaneous contact is tracked (to detect
+     * up/down transitions) but never sent to the engine.
      */
     #define MAX_TOUCH_SLOTS 5
     int last_touch_x[MAX_TOUCH_SLOTS] = {-1, -1, -1, -1, -1};
     int last_touch_y[MAX_TOUCH_SLOTS] = {-1, -1, -1, -1, -1};
     int slot_hw_id[MAX_TOUCH_SLOTS]   = {-1, -1, -1, -1, -1};
+    int primary_slot = -1;
+    int primary_fwd_x = -1, primary_fwd_y = -1;
 
     int old_up = 0, old_down = 0, old_left = 0, old_right = 0;
     int old_cross = 0, old_circle = 0, old_triangle = 0, old_square = 0;
@@ -326,9 +337,10 @@ int main() {
     SceTouchData touch_data;
 
     while (1) {
-        /**< @brief 1. Handle Physical Touch Screen Input (with stable slot tracking). */
+        /**< @brief 1. Handle Physical Touch Screen Input (single "primary" touch forwarded). */
         sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch_data, 1);
         int seen[MAX_TOUCH_SLOTS] = {0};
+        int new_slot = -1;
 
         for (int r = 0; r < touch_data.reportNum && r < MAX_TOUCH_SLOTS; r++) {
             int hw_id = touch_data.report[r].id;
@@ -347,29 +359,48 @@ int main() {
                 }
                 if (slot == -1) continue;
                 slot_hw_id[slot] = hw_id;
-                last_touch_x[slot] = -1;
-                last_touch_y[slot] = -1;
+                new_slot = slot;
             }
             seen[slot] = 1;
-
-            if (last_touch_x[slot] == -1) {
-                l_info("[HW_TOUCH_DOWN] Finger at (%d, %d) slot %d", x, y, slot);
-                if (handleCletEvent) handleCletEvent(&jni, NULL, EVENT_TOUCH_DOWN, x, y, slot);
-            } else if (last_touch_x[slot] != x || last_touch_y[slot] != y) {
-                if (handleCletEvent) handleCletEvent(&jni, NULL, EVENT_TOUCH_MOVE, x, y, slot);
-            }
             last_touch_x[slot] = x;
             last_touch_y[slot] = y;
         }
 
         for (int s = 0; s < MAX_TOUCH_SLOTS; s++) {
             if (slot_hw_id[s] != -1 && !seen[s]) {
-                l_info("[HW_TOUCH_UP] Finger release at (%d, %d) slot %d", last_touch_x[s], last_touch_y[s], s);
-                if (handleCletEvent) handleCletEvent(&jni, NULL, EVENT_TOUCH_UP, last_touch_x[s], last_touch_y[s], s);
-                last_touch_x[s] = -1;
-                last_touch_y[s] = -1;
+                if (s == primary_slot) {
+                    l_info("[HW_TOUCH_UP] Finger release at (%d, %d) slot %d", primary_fwd_x, primary_fwd_y, s);
+                    if (handleCletEvent) handleCletEvent(&jni, NULL, EVENT_TOUCH_UP, primary_fwd_x, primary_fwd_y, 0);
+                    primary_slot = -1;
+                    primary_fwd_x = -1;
+                    primary_fwd_y = -1;
+                }
                 slot_hw_id[s] = -1;
             }
+        }
+
+        /**< @brief A brand-new contact always takes over as the primary/forwarded touch. */
+        if (new_slot != -1 && new_slot != primary_slot) {
+            if (primary_slot != -1 && handleCletEvent) {
+                l_info("[HW_TOUCH_UP] Primary touch pre-empted by a new contact, releasing (%d, %d)", primary_fwd_x, primary_fwd_y);
+                handleCletEvent(&jni, NULL, EVENT_TOUCH_UP, primary_fwd_x, primary_fwd_y, 0);
+            }
+            primary_slot = new_slot;
+            primary_fwd_x = -1;
+            primary_fwd_y = -1;
+        }
+
+        if (primary_slot != -1) {
+            int x = last_touch_x[primary_slot];
+            int y = last_touch_y[primary_slot];
+            if (primary_fwd_x == -1) {
+                l_info("[HW_TOUCH_DOWN] Finger at (%d, %d)", x, y);
+                if (handleCletEvent) handleCletEvent(&jni, NULL, EVENT_TOUCH_DOWN, x, y, 0);
+            } else if (primary_fwd_x != x || primary_fwd_y != y) {
+                if (handleCletEvent) handleCletEvent(&jni, NULL, EVENT_TOUCH_MOVE, x, y, 0);
+            }
+            primary_fwd_x = x;
+            primary_fwd_y = y;
         }
 
         /**< @brief 2. Handle Physical Buttons & Analog Sticks. */

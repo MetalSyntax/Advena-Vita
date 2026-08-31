@@ -267,6 +267,19 @@ void Advena_OnSoundPlay(jmethodID id, va_list args) {
     int snd_id = va_arg(args, int);
     int vol = va_arg(args, int);
     int is_loop = va_arg(args, int);
+
+    /**
+     * @brief Sound IDs 16-21 are always one-shot SFX on Android: AdvenaUIControllerView.OnSoundPlay
+     * routes them straight to NexusSound.playSFXSound(), which plays through a SoundPool with a
+     * hardcoded loop=0 and ignores the isLoop argument entirely (decompiled/apk_jadx/sources/com/
+     * gamevil/advena/ui/AdvenaUIControllerView.java:485-491). The engine sometimes calls
+     * OnSoundPlay() with is_loop=1 for these IDs anyway; honoring it here made them loop forever
+     * instead of playing once.
+     */
+    if (snd_id >= 16 && snd_id <= 21) {
+        is_loop = 0;
+    }
+
     audio_play(snd_id, vol, is_loop);
 }
 
